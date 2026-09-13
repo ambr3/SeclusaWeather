@@ -1058,31 +1058,13 @@ const UI = {
 
     if (body) {
       body.innerHTML = `
-        <div class="hourly-modal__scrollhint">Scroll up/down for all stats</div>
         <div class="hourly-modal__date">${weekday}</div>
         <div class="hourly-modal__time">${dateHeading}</div>
         <div class="hourly-modal__icon">${icon}</div>
         <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
         <div class="hourly-modal__desc">${desc}</div>
         ${summary ? `<div class="hourly-modal__summary">${summary}</div>` : ''}
-        <div class="hourly-modal__stats">
-          ${stat('Feels', feelsVal, 'feels')}
-          ${stat('Rain', `${Math.round(pop)}%`, 'rain')}
-          ${stat('Precip', Utils.formatPrecip(rainSum, units), 'precip')}
-          ${stat('Snow', Utils.formatSnow(snowSum, units), 'snow')}
-          ${stat('Wind', windVal, 'wind')}
-          ${uv != null ? stat('UV', uvInfo ? `<span style="color:${uvInfo.color}">${uv} ${uvInfo.label}</span>` : String(uv), 'uv') : ''}
-          ${stat('UV clear', uvClear != null ? String(uvClear) : null, 'uv')}
-          ${stat('Dew point', dewVal, 'dew')}
-          ${stat('Sunshine', sunshine != null ? Utils.formatDuration(sunshine) : null, 'sunshine')}
-          ${stat('Daylight', daylight, 'sunshine')}
-          ${stat('Precip hours', precipHours, 'precip')}
-          ${stat('Sunrise', sunrise, 'sunrise')}
-          ${stat('Sunset', sunset, 'sunset')}
-          ${stat('Moon', moonInfo, 'moon')}
-          ${stat('Moonrise', moonrise, 'moon')}
-          ${stat('Moonset', moonset, 'moon')}
-        </div>
+        ${stat('Sun', sunrise && sunset ? `${sunrise} <span class="hourly-modal__stat-arrow">&#8593;</span> / ${sunset} <span class="hourly-modal__stat-arrow">&#8595;</span>` : null, 'sun')}
         <div class="hourly-modal__hint">Swipe or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to browse days</div>
       `;
       body.scrollTop = 0;

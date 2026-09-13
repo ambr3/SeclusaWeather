@@ -2123,11 +2123,11 @@ body.has-modal {
 }
 
 .hourly-modal__summary {
-  margin: 0.4rem auto 0;
-  max-width: 36ch;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  opacity: 0.92;
+  margin: 0.6rem auto 0.2rem;
+  max-width: 38ch;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  opacity: 0.95;
 }
 
 .hourly-modal__stats {
@@ -2163,33 +2163,35 @@ body.has-modal {
   word-break: break-word;
 }
 
-.hourly-modal__stat--feels { background: rgba(216, 180, 254, 0.16); }
-.hourly-modal__stat--feels .hourly-modal__stat-value { color: #d8b4fe; }
-.hourly-modal__stat--rain { background: rgba(125, 211, 252, 0.16); }
-.hourly-modal__stat--rain .hourly-modal__stat-value { color: #7dd3fc; }
-.hourly-modal__stat--precip { background: rgba(103, 232, 249, 0.16); }
-.hourly-modal__stat--precip .hourly-modal__stat-value { color: #67e8f9; }
-.hourly-modal__stat--snow { background: rgba(224, 242, 254, 0.16); }
-.hourly-modal__stat--snow .hourly-modal__stat-value { color: #dbeafe; }
-.hourly-modal__stat--humidity { background: rgba(94, 234, 212, 0.16); }
-.hourly-modal__stat--humidity .hourly-modal__stat-value { color: #5eead4; }
-.hourly-modal__stat--wind { background: rgba(252, 211, 77, 0.16); }
-.hourly-modal__stat--wind .hourly-modal__stat-value { color: #fcd34d; }
-.hourly-modal__stat--pressure { background: rgba(134, 239, 172, 0.16); }
-.hourly-modal__stat--pressure .hourly-modal__stat-value { color: #86efac; }
-.hourly-modal__stat--clouds { background: rgba(203, 213, 225, 0.16); }
-.hourly-modal__stat--clouds .hourly-modal__stat-value { color: #cbd5e1; }
-.hourly-modal__stat--visibility { background: rgba(196, 181, 253, 0.16); }
-.hourly-modal__stat--visibility .hourly-modal__stat-value { color: #c4b5fd; }
-.hourly-modal__stat--dew { background: rgba(186, 230, 253, 0.16); }
-.hourly-modal__stat--dew .hourly-modal__stat-value { color: #bae6fd; }
+.hourly-modal__stat--feels,
+.hourly-modal__stat--rain,
+.hourly-modal__stat--precip,
+.hourly-modal__stat--snow,
+.hourly-modal__stat--humidity,
+.hourly-modal__stat--wind,
+.hourly-modal__stat--pressure,
+.hourly-modal__stat--clouds,
+.hourly-modal__stat--visibility,
+.hourly-modal__stat--dew { background: rgba(148, 163, 184, 0.14); }
+.hourly-modal__stat--feels .hourly-modal__stat-value,
+.hourly-modal__stat--rain .hourly-modal__stat-value,
+.hourly-modal__stat--precip .hourly-modal__stat-value,
+.hourly-modal__stat--snow .hourly-modal__stat-value,
+.hourly-modal__stat--humidity .hourly-modal__stat-value,
+.hourly-modal__stat--wind .hourly-modal__stat-value,
+.hourly-modal__stat--pressure .hourly-modal__stat-value,
+.hourly-modal__stat--clouds .hourly-modal__stat-value,
+.hourly-modal__stat--visibility .hourly-modal__stat-value,
+.hourly-modal__stat--dew .hourly-modal__stat-value { color: #cbd5e1; }
 .hourly-modal__stat--uv { background: rgba(255, 214, 0, 0.12); }
 .hourly-modal__stat--sunshine { background: rgba(253, 224, 71, 0.16); }
 .hourly-modal__stat--sunshine .hourly-modal__stat-value { color: #fde047; }
-.hourly-modal__stat--sunrise { background: rgba(251, 146, 60, 0.16); }
-.hourly-modal__stat--sunrise .hourly-modal__stat-value { color: #fdba74; }
-.hourly-modal__stat--sunset { background: rgba(244, 114, 182, 0.16); }
-.hourly-modal__stat--sunset .hourly-modal__stat-value { color: #f9a8d4; }
+.hourly-modal__stat--sun { background: rgba(250, 204, 21, 0.16); }
+.hourly-modal__stat--sun .hourly-modal__stat-value { color: #fde047; }
+.hourly-modal__stat--sunrise { background: rgba(250, 204, 21, 0.16); }
+.hourly-modal__stat--sunrise .hourly-modal__stat-value { color: #fde047; }
+.hourly-modal__stat--sunset { background: rgba(250, 204, 21, 0.16); }
+.hourly-modal__stat--sunset .hourly-modal__stat-value { color: #fde047; }
 .hourly-modal__stat--moon { background: rgba(165, 180, 252, 0.16); }
 .hourly-modal__stat--moon .hourly-modal__stat-value { color: #a5b4fc; }
 
