@@ -69,7 +69,7 @@ Your data is your business. That's the whole point.
 | 🖥️ **No server** | Pure static site — nothing runs on a server |
 | 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
 | 🏠 **Stays on device** | Preferences, last location, and cached forecast never leave your device |
-| 📤 **What leaves** | Forecasts (with coordinates) go to Open-Meteo. Nothing else |
+| 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
 | 🧹 **Self-cleaning cache** | Cached API responses remove themselves after 7 days; the on-device forecast snapshot is overwritten on every refresh |
 | 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
 | 📍 **Geolocation opt-in** | Only on button tap, sent only to Open-Meteo |

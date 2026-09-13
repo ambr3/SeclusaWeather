@@ -1,5 +1,6 @@
 # Local project rules — not part of the published site.
 AGENTS.md
+TEST-COMMANDS.md
 
 # Local opencode configuration — not part of the published site.
 .opencode/

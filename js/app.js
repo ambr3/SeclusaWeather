@@ -327,7 +327,7 @@ const App = {
     const displayName = r.name || 'Location';
     this.$('searchInput').value = displayName;
     this.hideDropdown();
-    this.loadWeather(r.lat, r.lon, displayName, r.country, `${r.name}, ${r.country}`).catch((e) => { console.debug('Background load failed:', e); });
+    this.loadWeather(r.lat, r.lon, displayName, r.country, displayName).catch((e) => { console.debug('Background load failed:', e); });
   },
 
   hideDropdown() {

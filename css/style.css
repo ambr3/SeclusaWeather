@@ -1083,8 +1083,6 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 .conditions-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-radius: 12px;
-  overflow: hidden;
 }
 
 .conditions-item {
@@ -1095,6 +1093,29 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   min-width: 0;
   border-right: 1px solid var(--color-card-border);
   border-bottom: 1px solid var(--color-card-border);
+}
+
+.conditions-item:nth-child(-n+3) {
+  border-top: 1px solid var(--color-card-border);
+}
+
+.conditions-item:nth-child(3n+1),
+.conditions-item--wide {
+  border-left: 1px solid var(--color-card-border);
+}
+
+/* Round the corner cells themselves so the outline joins cleanly. */
+.conditions-item:nth-child(1) {
+  border-top-left-radius: 12px;
+}
+
+.conditions-item:nth-child(3) {
+  border-top-right-radius: 12px;
+}
+
+.conditions-item:last-child {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 
 .conditions-item__label {
@@ -1389,11 +1410,13 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 /* Hourly Chart */
 .chart-tabs {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
   margin-bottom: 0.8rem;
   overflow-x: auto;
   scrollbar-width: none;
   max-width: 100%;
+  padding: 0 0.25rem;
 }
 .chart-tabs::-webkit-scrollbar {
   display: none;
@@ -1964,6 +1987,7 @@ body.has-modal {
   display: grid;
   place-items: center;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .hourly-modal__backdrop {
@@ -1995,9 +2019,12 @@ body.has-modal {
   min-width: 0;
   padding: 1.1rem 1.1rem 0.9rem;
   text-align: center;
+  color: #eef2ff;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .hourly-modal__body::-webkit-scrollbar {
@@ -2095,6 +2122,14 @@ body.has-modal {
   margin-top: 0.1rem;
 }
 
+.hourly-modal__summary {
+  margin: 0.4rem auto 0;
+  max-width: 36ch;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
 .hourly-modal__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -2126,6 +2161,45 @@ body.has-modal {
   font-weight: 700;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.hourly-modal__stat--feels { background: rgba(216, 180, 254, 0.16); }
+.hourly-modal__stat--feels .hourly-modal__stat-value { color: #d8b4fe; }
+.hourly-modal__stat--rain { background: rgba(125, 211, 252, 0.16); }
+.hourly-modal__stat--rain .hourly-modal__stat-value { color: #7dd3fc; }
+.hourly-modal__stat--precip { background: rgba(103, 232, 249, 0.16); }
+.hourly-modal__stat--precip .hourly-modal__stat-value { color: #67e8f9; }
+.hourly-modal__stat--snow { background: rgba(224, 242, 254, 0.16); }
+.hourly-modal__stat--snow .hourly-modal__stat-value { color: #dbeafe; }
+.hourly-modal__stat--humidity { background: rgba(94, 234, 212, 0.16); }
+.hourly-modal__stat--humidity .hourly-modal__stat-value { color: #5eead4; }
+.hourly-modal__stat--wind { background: rgba(252, 211, 77, 0.16); }
+.hourly-modal__stat--wind .hourly-modal__stat-value { color: #fcd34d; }
+.hourly-modal__stat--pressure { background: rgba(134, 239, 172, 0.16); }
+.hourly-modal__stat--pressure .hourly-modal__stat-value { color: #86efac; }
+.hourly-modal__stat--clouds { background: rgba(203, 213, 225, 0.16); }
+.hourly-modal__stat--clouds .hourly-modal__stat-value { color: #cbd5e1; }
+.hourly-modal__stat--visibility { background: rgba(196, 181, 253, 0.16); }
+.hourly-modal__stat--visibility .hourly-modal__stat-value { color: #c4b5fd; }
+.hourly-modal__stat--dew { background: rgba(186, 230, 253, 0.16); }
+.hourly-modal__stat--dew .hourly-modal__stat-value { color: #bae6fd; }
+.hourly-modal__stat--uv { background: rgba(255, 214, 0, 0.12); }
+.hourly-modal__stat--sunshine { background: rgba(253, 224, 71, 0.16); }
+.hourly-modal__stat--sunshine .hourly-modal__stat-value { color: #fde047; }
+.hourly-modal__stat--sunrise { background: rgba(251, 146, 60, 0.16); }
+.hourly-modal__stat--sunrise .hourly-modal__stat-value { color: #fdba74; }
+.hourly-modal__stat--sunset { background: rgba(244, 114, 182, 0.16); }
+.hourly-modal__stat--sunset .hourly-modal__stat-value { color: #f9a8d4; }
+.hourly-modal__stat--moon { background: rgba(165, 180, 252, 0.16); }
+.hourly-modal__stat--moon .hourly-modal__stat-value { color: #a5b4fc; }
+
+.hourly-modal__scrollhint {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 0.5rem;
 }
 
 .hourly-modal__hint {

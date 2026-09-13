@@ -54,6 +54,20 @@ const PRUNE_INTERVAL = 6 * 60 * 60 * 1000;
 // records its own write-time timestamp in a sibling meta entry instead of
 // trying to read unreadable response headers.
 const API_META_SUFFIX = '&meta=savedAt';
+const API_ORIGINS = new Set([
+  'https://api.open-meteo.com',
+  'https://air-quality-api.open-meteo.com',
+  'https://geocoding-api.open-meteo.com',
+]);
+
+function isApiRequest(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && API_ORIGINS.has(u.origin);
+  } catch {
+    return false;
+  }
+}
 
 async function pruneApiCache() {
   try {
@@ -95,7 +109,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = request.url;
 
-  if (url.includes('api.open-meteo.com') || url.includes('air-quality-api.open-meteo.com') || url.includes('geocoding-api.open-meteo.com')) {
+  if (isApiRequest(url)) {
     event.respondWith(
       caches.open(API_CACHE).then((cache) =>
         fetch(request)

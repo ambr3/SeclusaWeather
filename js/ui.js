@@ -17,6 +17,8 @@ const UI = {
   _modalCount: 0,
   _modalIndex: null,
   _modalOpen: false,
+  _modalSlideDir: 0,
+  _tz: null,
   _hourlyModalBound: false,
   _modalKeyHandler: null,
 
@@ -504,6 +506,22 @@ const UI = {
     return max;
   },
 
+  // Min/max across the 24 hours of a date for a given hourly key (e.g. dew point).
+  dayMinMax(dateStr, hourly, key) {
+    if (!hourly || !hourly.time || !hourly[key]) return null;
+    const prefix = dateStr + 'T';
+    let min = null;
+    let max = null;
+    for (let k = 0; k < hourly.time.length; k++) {
+      if (!hourly.time[k].startsWith(prefix)) continue;
+      const v = hourly[key][k];
+      if (v == null || !Number.isFinite(Number(v))) continue;
+      if (min == null || v < min) min = v;
+      if (max == null || v > max) max = v;
+    }
+    return min == null ? null : { min, max };
+  },
+
   renderForecast(daily, units, days, hourly) {
     if (!daily || !daily.time || !daily.time.length) return;
     if (this._modalOpen) this.closeHourlyDetail();
@@ -819,6 +837,7 @@ const UI = {
     this._renderHourlyModal();
   },
 
+
   closeHourlyDetail() {
     const modal = this.$('hourlyModal');
     if (modal) {
@@ -844,7 +863,12 @@ const UI = {
 
     const units = this._modalUnits || 'metric';
     const temp = h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—';
+    const tempRaw = h.temperature_2m && h.temperature_2m[idx];
+    const tempColor = tempRaw != null ? Utils.getTempColor(tempRaw, units) : null;
     const feels = h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null;
+    const feelsRaw = h.apparent_temperature && h.apparent_temperature[idx];
+    const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${feels}</span>` : feels) : null;
+    const dewPoint = h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null;
     const pop = h.precipitation_probability ? h.precipitation_probability[idx] : null;
     const precip = h.precipitation ? h.precipitation[idx] : 0;
     const snow = h.snowfall ? h.snowfall[idx] : 0;
@@ -861,8 +885,8 @@ const UI = {
     const icon = WeatherIcons.get(iconCode, h.is_day && h.is_day[idx] != null ? h.is_day[idx] : 1);
     const desc = Utils.getWeatherDescription(iconCode);
 
-    const stat = (label, value) => value != null
-      ? `<div class="hourly-modal__stat"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
+    const stat = (label, value, tint) => value != null
+      ? `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
       : '';
 
     const tLabel = this._modalIndex === 0 ? 'Now' : Utils.formatHourShort(time, this._tz);
@@ -899,7 +923,7 @@ const UI = {
       document.body.classList.add('has-modal');
       body = modal.querySelector('.hourly-modal__body');
     } else if (this._modalSlideDir && body) {
-      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.24s ease`;
+      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.3s cubic-bezier(0.22, 1, 0.36, 1)`;
       body.style.animation = 'none';
       void body.offsetWidth;
       body.style.animation = anim;
@@ -908,24 +932,27 @@ const UI = {
 
     if (body) {
       body.innerHTML = `
+        <div class="hourly-modal__scrollhint">Scroll up/down for all stats</div>
         <div class="hourly-modal__date">${dLabel}</div>
         <div class="hourly-modal__time">${tLabel}</div>
         <div class="hourly-modal__icon">${icon}</div>
-        <div class="hourly-modal__temp">${temp}</div>
+        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${temp}</div>
         <div class="hourly-modal__desc">${desc}</div>
         <div class="hourly-modal__stats">
-          ${stat('Feels', feels)}
-          ${stat('Rain', pop != null ? `${Math.round(pop)}%` : null)}
-          ${stat('Precip', Utils.formatPrecip(precip, units))}
-          ${stat('Snow', Utils.formatSnow(snow, units))}
-          ${stat('Humidity', humidity)}
-          ${stat('Wind', windVal)}
-          ${stat('Pressure', pressure)}
-          ${stat('Clouds', cloud)}
-          ${stat('Visibility', visibility)}
+          ${stat('Feels', feelsVal, 'feels')}
+          ${stat('Rain', pop != null ? `${Math.round(pop)}%` : null, 'rain')}
+          ${stat('Precip', Utils.formatPrecip(precip, units), 'precip')}
+          ${stat('Snow', Utils.formatSnow(snow, units), 'snow')}
+          ${stat('Humidity', humidity, 'humidity')}
+          ${stat('Wind', windVal, 'wind')}
+          ${stat('Pressure', pressure, 'pressure')}
+          ${stat('Clouds', cloud, 'clouds')}
+          ${stat('Visibility', visibility, 'visibility')}
+          ${stat('Dew point', dewPoint, 'dew')}
         </div>
         <div class="hourly-modal__hint">Swipe or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to browse hours</div>
       `;
+      body.scrollTop = 0;
     }
 
     const focus = modal.querySelector('.hourly-modal__close');
@@ -952,9 +979,20 @@ const UI = {
     const gustMax = d.wind_gusts_10m_max && d.wind_gusts_10m_max[i] != null ? Math.round(d.wind_gusts_10m_max[i]) : null;
     const windDir = d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[i] != null ? Math.round(d.wind_direction_10m_dominant[i]) : null;
     const uv = d.uv_index_max && d.uv_index_max[i] != null ? d.uv_index_max[i] : null;
+    const uvClear = d.uv_index_clear_sky_max && d.uv_index_clear_sky_max[i] != null ? Math.round(d.uv_index_clear_sky_max[i]) : null;
     const sunshine = d.sunshine_duration ? d.sunshine_duration[i] : null;
+    const daylight = d.daylight_duration && d.daylight_duration[i] != null ? Utils.formatDuration(d.daylight_duration[i]) : null;
+    const precipHours = d.precipitation_hours && d.precipitation_hours[i] != null ? `${Math.round(d.precipitation_hours[i])}h` : null;
     const sunrise = d.sunrise && d.sunrise[i] ? Utils.formatTime(d.sunrise[i], this._tz) : null;
     const sunset = d.sunset && d.sunset[i] ? Utils.formatTime(d.sunset[i], this._tz) : null;
+    const moonPhase = d.moon_phase && d.moon_phase[i] != null ? d.moon_phase[i] : null;
+    const moonInfo = moonPhase != null ? `${Utils.getMoonPhaseName(moonPhase)} · ${Utils.getMoonIllumination(moonPhase)}%` : null;
+    const moonrise = d.moonrise && d.moonrise[i] ? Utils.formatTime(d.moonrise[i], this._tz) : null;
+    const moonset = d.moonset && d.moonset[i] ? Utils.formatTime(d.moonset[i], this._tz) : null;
+    const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[i];
+    const tempColor = tempMaxRaw != null ? Utils.getTempColor(tempMaxRaw, units) : null;
+    const dew = date ? this.dayMinMax(date, this._forecastHourly, 'dew_point_2m') : null;
+    const dewVal = dew ? `${Utils.formatTemp(dew.min, units)} / ${Utils.formatTemp(dew.max, units)}` : null;
 
     const iconCode = WeatherIcons.dailyIcon(
       WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0) ?? d.weather_code[i],
@@ -964,11 +1002,29 @@ const UI = {
     const desc = Utils.getWeatherDescription(iconCode);
     const windUnit = Utils.getWindUnit(UI.windUnit);
     const uvInfo = uv != null ? Utils.getUVLevel(uv) : null;
-    const feelsVal = feelsHigh != null && feelsLow != null ? `${feelsHigh} / ${feelsLow}` : null;
+    const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[i];
+    const feelsVal = feelsHigh != null && feelsLow != null
+      ? (feelsHighRaw != null
+          ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${feelsHigh} / ${feelsLow}</span>`
+          : `${feelsHigh} / ${feelsLow}`)
+      : null;
 
-    const stat = (label, value) => value != null
-      ? `<div class="hourly-modal__stat"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
+    const stat = (label, value, tint) => value != null
+      ? `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
       : '';
+
+    const summaryBits = [];
+    if (desc && high !== '—' && low !== '—') summaryBits.push(`${desc} with a high of ${high} and a low of ${low}.`);
+    else if (desc) summaryBits.push(`${desc}.`);
+    else if (high !== '—' && low !== '—') summaryBits.push(`High ${high} / Low ${low}.`);
+    const summaryExtras = [];
+    if (pop > 0) summaryExtras.push(`${Math.round(pop)}% chance of rain`);
+    else if (rainSum && rainSum > 0) summaryExtras.push(`${Utils.formatPrecip(rainSum, units)} of rain expected`);
+    if (snowSum && snowSum > 0) summaryExtras.push(`${Utils.formatSnow(snowSum, units)} of snow expected`);
+    if (windMax != null) summaryExtras.push(`winds up to ${windMax} ${windUnit}${gustMax != null ? `, gusting ${gustMax} ${windUnit}` : ''}`);
+    if (uv != null && uvInfo) summaryExtras.push(`UV ${Math.round(uv)} (${uvInfo.label.toLowerCase()})`);
+    if (summaryExtras.length) summaryBits.push(summaryExtras.join(', '));
+    const summary = summaryBits.join(' ');
 
     const parsed = Utils.parseLocal(date + 'T00:00:00', this._tz);
     const weekday = i === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
@@ -993,7 +1049,7 @@ const UI = {
       document.body.classList.add('has-modal');
       body = modal.querySelector('.hourly-modal__body');
     } else if (this._modalSlideDir && body) {
-      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.24s ease`;
+      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.3s cubic-bezier(0.22, 1, 0.36, 1)`;
       body.style.animation = 'none';
       void body.offsetWidth;
       body.style.animation = anim;
@@ -1002,24 +1058,34 @@ const UI = {
 
     if (body) {
       body.innerHTML = `
+        <div class="hourly-modal__scrollhint">Scroll up/down for all stats</div>
         <div class="hourly-modal__date">${weekday}</div>
         <div class="hourly-modal__time">${dateHeading}</div>
         <div class="hourly-modal__icon">${icon}</div>
-        <div class="hourly-modal__temp">${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
+        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
         <div class="hourly-modal__desc">${desc}</div>
+        ${summary ? `<div class="hourly-modal__summary">${summary}</div>` : ''}
         <div class="hourly-modal__stats">
-          ${stat('Feels', feelsVal)}
-          ${stat('Rain', `${Math.round(pop)}%`)}
-          ${stat('Precip', Utils.formatPrecip(rainSum, units))}
-          ${stat('Snow', Utils.formatSnow(snowSum, units))}
-          ${stat('Wind', windVal)}
-          ${uv != null ? stat('UV', uvInfo ? `<span style="color:${uvInfo.color}">${uv} ${uvInfo.label}</span>` : String(uv)) : ''}
-          ${stat('Sunshine', sunshine != null ? Utils.formatDuration(sunshine) : null)}
-          ${stat('Sunrise', sunrise)}
-          ${stat('Sunset', sunset)}
+          ${stat('Feels', feelsVal, 'feels')}
+          ${stat('Rain', `${Math.round(pop)}%`, 'rain')}
+          ${stat('Precip', Utils.formatPrecip(rainSum, units), 'precip')}
+          ${stat('Snow', Utils.formatSnow(snowSum, units), 'snow')}
+          ${stat('Wind', windVal, 'wind')}
+          ${uv != null ? stat('UV', uvInfo ? `<span style="color:${uvInfo.color}">${uv} ${uvInfo.label}</span>` : String(uv), 'uv') : ''}
+          ${stat('UV clear', uvClear != null ? String(uvClear) : null, 'uv')}
+          ${stat('Dew point', dewVal, 'dew')}
+          ${stat('Sunshine', sunshine != null ? Utils.formatDuration(sunshine) : null, 'sunshine')}
+          ${stat('Daylight', daylight, 'sunshine')}
+          ${stat('Precip hours', precipHours, 'precip')}
+          ${stat('Sunrise', sunrise, 'sunrise')}
+          ${stat('Sunset', sunset, 'sunset')}
+          ${stat('Moon', moonInfo, 'moon')}
+          ${stat('Moonrise', moonrise, 'moon')}
+          ${stat('Moonset', moonset, 'moon')}
         </div>
         <div class="hourly-modal__hint">Swipe or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to browse days</div>
       `;
+      body.scrollTop = 0;
     }
 
     const focus = modal.querySelector('.hourly-modal__close');

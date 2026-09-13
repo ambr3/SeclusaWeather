@@ -167,6 +167,31 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .conditions-item:nth-child(3) {
+    border-top-right-radius: 0;
+  }
+
+  .conditions-item:nth-child(2) {
+    border-top-right-radius: 12px;
+  }
+
+  .conditions-item:nth-child(-n+3) {
+    border-top: none;
+  }
+
+  .conditions-item:nth-child(-n+2) {
+    border-top: 1px solid var(--color-card-border);
+  }
+
+  .conditions-item:nth-child(3n+1):not(.conditions-item--wide) {
+    border-left: none;
+  }
+
+  .conditions-item:nth-child(odd),
+  .conditions-item--wide {
+    border-left: 1px solid var(--color-card-border);
+  }
+
   .conditions-item__value {
     font-size: 1.4rem;
   }
