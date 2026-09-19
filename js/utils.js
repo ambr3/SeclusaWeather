@@ -122,13 +122,12 @@ const Utils = {
     return `${Math.round(hPa)} hPa`;
   },
 
-  formatSnow(cm, units) {
-    if (cm == null || cm <= 0) return null;
-    if (units === 'imperial') {
-      const inches = Math.round((cm / 2.54) * 10) / 10;
-      return `${inches} in`;
-    }
-    return `${Math.round(cm * 10) / 10} cm`;
+  // Open-Meteo returns snowfall in cm for metric requests but in inches when
+  // `precipitation_unit=inch` is used — never unit-convert, just relabel.
+  formatSnow(v, units) {
+    if (v == null || v <= 0) return null;
+    if (units === 'imperial') return `${Math.round(v * 10) / 10} in`;
+    return `${Math.round(v * 10) / 10} cm`;
   },
 
   getAQILevel(aqi, scale) {

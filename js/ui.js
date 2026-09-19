@@ -21,6 +21,8 @@ const UI = {
   _tz: null,
   _hourlyModalBound: false,
   _modalKeyHandler: null,
+  _chartSwipeBound: false,
+  CHART_MODES: ['temp', 'rain', 'wind', 'humidity', 'cloud', 'pressure', 'solar'],
 
   _getMeasureCtx() {
     if (!this._measureCanvas) {
@@ -538,8 +540,8 @@ const UI = {
       const pop = this.daytimeMaxPop(date, hourly) ?? (daily.precipitation_probability_max != null ? Math.round(daily.precipitation_probability_max[i] ?? 0) : 0);
       const rainSum = daily.rain_sum ? daily.rain_sum[i] : null;
       const snowSum = daily.snowfall_sum ? daily.snowfall_sum[i] : null;
-      const weatherCode = WeatherIcons.dominantDayCode(date, hourly, pop, rainSum, snowSum) ?? daily.weather_code[i];
-      const iconCode = WeatherIcons.dailyIcon(weatherCode, pop, rainSum, snowSum);
+      const weatherCode = WeatherIcons.dominantDayCode(date, hourly, pop, rainSum, snowSum, units) ?? daily.weather_code[i];
+      const iconCode = WeatherIcons.dailyIcon(weatherCode, pop, rainSum, snowSum, units);
       const icon = WeatherIcons.get(iconCode, true);
 
       const d = Utils.parseLocal(date + 'T00:00:00', this._tz);
@@ -995,8 +997,8 @@ const UI = {
     const dewVal = dew ? `${Utils.formatTemp(dew.min, units)} / ${Utils.formatTemp(dew.max, units)}` : null;
 
     const iconCode = WeatherIcons.dailyIcon(
-      WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0) ?? d.weather_code[i],
-      pop, rainSum ?? 0, snowSum ?? 0
+      WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[i],
+      pop, rainSum ?? 0, snowSum ?? 0, units
     );
     const icon = WeatherIcons.get(iconCode, true);
     const desc = Utils.getWeatherDescription(iconCode);
@@ -1079,9 +1081,7 @@ const UI = {
     if (!container || !hourly || !hourly.time) return;
 
     container.classList.remove('hidden');
-    const tabs = this.$('chartTabs');
-    if (tabs) tabs.classList.remove('hidden');
-    this._updateChartHint();
+    this._bindChartSwipe(container);
 
     const W = Math.max(320, container.clientWidth || 600);
     const H = 320;
@@ -1230,12 +1230,12 @@ const UI = {
 
     let line = '', dots = '', cells = '', defs = '';
     if (cfg.cells) {
-      const bandH = 62;
-      const baseY = H - padB;
+      const baseY = padT + ih;
+      const scale = (t) => (t - minT) / span;
       cfg.values.forEach((t, i) => {
         if (!Number.isFinite(t)) return;
-        const h = Math.max(3, (t / 100) * bandH);
-        const op = (0.45 + 0.55 * (t / 100)).toFixed(2);
+        const h = Math.max(2, scale(t) * ih);
+        const op = (0.45 + 0.55 * Math.min(1, scale(t))).toFixed(2);
         const x0 = (cellsPos.pos(i) - cellsPos.bw / 2).toFixed(1);
         const y0 = (baseY - h).toFixed(1);
         cells += `<rect x="${x0}" y="${y0}" width="${cellsPos.bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${cellsPos.rx}" fill="${cfg.color}" fill-opacity="${op}" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>`;
@@ -1284,11 +1284,19 @@ const UI = {
       }
     }
 
-    const modeLabel = mode === 'rain' ? 'Rain' : mode === 'wind' ? 'Wind' : mode === 'humidity' ? 'Humidity' : mode === 'cloud' ? 'Cloud Cover' : mode === 'pressure' ? 'Pressure' : mode === 'solar' ? 'Sun strength' : 'Temperature & dew point';
+    const modeLabel = this._chartModeLabel(mode);
+    const modePills = this.CHART_MODES.map((m) =>
+      `<button type="button" class="hourly-chart__mode${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
+    ).join('');
     container.innerHTML = `
       <div class="hourly-chart__head">
         <span class="hourly-chart__title">${modeLabel}</span>
+        <div class="hourly-chart__nav" role="group" aria-label="Change chart">
+          <button type="button" class="hourly-chart__arrow" data-dir="prev" aria-label="Previous chart">‹</button>
+          <button type="button" class="hourly-chart__arrow" data-dir="next" aria-label="Next chart">›</button>
+        </div>
       </div>
+      <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePills}</div>
       <svg viewBox="0 0 ${W} ${H}" class="hourly-chart__svg" role="img"
            aria-label="24-hour ${modeLabel} chart">
         <defs>${defs}</defs>
@@ -1301,30 +1309,132 @@ const UI = {
       ${cfg.legend && cfg.legend.length ? `
         <div class="hourly-chart__legend">
           ${cfg.legend.map((l) => `<span class="hourly-chart__legend-item"><span class="hourly-chart__legend-swatch" style="background:${l.swatch}"></span>${l.label}</span>`).join('')}
-        </div>` : ''}`;
+        </div>` : ''}
+      <div class="hourly-chart__hint">Swipe the card or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to change chart</div>`;
+
+    const modes = container.querySelector('.hourly-chart__modes');
+    const activeMode = container.querySelector('.hourly-chart__mode.is-active');
+    if (modes && activeMode && modes.scrollWidth > modes.clientWidth) {
+      const mr = modes.getBoundingClientRect();
+      const cr = activeMode.getBoundingClientRect();
+      if (cr.left < mr.left || cr.right > mr.right) {
+        modes.scrollLeft += (cr.left - mr.left) - (mr.width - cr.width) / 2;
+      }
+    }
   },
 
   setChartMode(mode) {
     if (mode === 'dew') mode = 'temp';
-    this._chartMode = ['temp', 'rain', 'wind', 'humidity', 'cloud', 'pressure', 'solar'].includes(mode) ? mode : 'temp';
-    const map = { temp: 'chartTempBtn', rain: 'chartRainBtn', wind: 'chartWindBtn', humidity: 'chartHumidityBtn', cloud: 'chartCloudBtn', pressure: 'chartPressureBtn', solar: 'chartSolarBtn' };
-    Object.keys(map).forEach((k) => {
-      const btn = this.$(map[k]);
-      if (!btn) return;
-      const on = k === this._chartMode;
-      btn.classList.toggle('is-active', on);
-      btn.setAttribute('aria-selected', String(on));
-    });
+    this._chartMode = this.CHART_MODES.includes(mode) ? mode : 'temp';
   },
 
-  _updateChartHint() {
-    const tabs = this.$('chartTabs');
-    const hint = this.$('chartHint');
-    const container = this.$('hourlyChart');
-    if (!tabs || !hint || !container || container.classList.contains('hidden')) return;
-    const scrollable = tabs.scrollWidth > tabs.clientWidth + 1;
-    hint.classList.toggle('hidden', !scrollable);
-    tabs.classList.toggle('chart-tabs--scroll', scrollable);
+  _chartModeShort(mode) {
+    return mode === 'temp' ? 'Temp & Dew'
+      : mode === 'rain' ? 'Rain'
+      : mode === 'wind' ? 'Wind'
+      : mode === 'humidity' ? 'Humidity'
+      : mode === 'cloud' ? 'Cloud'
+      : mode === 'pressure' ? 'Pressure'
+      : 'Solar';
+  },
+
+  _chartModeLabel(mode) {
+    return mode === 'rain' ? 'Rain'
+      : mode === 'wind' ? 'Wind'
+      : mode === 'humidity' ? 'Humidity'
+      : mode === 'cloud' ? 'Cloud Cover'
+      : mode === 'pressure' ? 'Pressure'
+      : mode === 'solar' ? 'Sun strength'
+      : 'Temperature & dew point';
+  },
+
+  _setMode(mode) {
+    this.setChartMode(mode);
+    Utils.safeSet('chartMode', mode);
+    if (this._lastWeather && this._lastWeather.hourly) {
+      this.renderHourlyChart(this._lastWeather.hourly, this._lastUnits);
+    }
+  },
+
+  _cycleChart(dir) {
+    const order = this.CHART_MODES;
+    const i = order.indexOf(this._chartMode);
+    this._setMode(order[(i + dir + order.length) % order.length]);
+  },
+
+  _bindChartSwipe(container) {
+    if (this._chartSwipeBound || !container) return;
+    this._chartSwipeBound = true;
+
+    container.tabIndex = 0;
+    container.setAttribute('aria-label', 'Hourly chart — swipe or use arrow keys to change metric');
+
+    container.addEventListener('click', (e) => {
+      if (this._chartDragged) { this._chartDragged = false; return; }
+      const modeBtn = e.target.closest('.hourly-chart__mode[data-mode]');
+      if (modeBtn) {
+        this._setMode(modeBtn.getAttribute('data-mode'));
+        return;
+      }
+      const arrow = e.target.closest('.hourly-chart__arrow');
+      if (arrow) this._cycleChart(arrow.getAttribute('data-dir') === 'next' ? 1 : -1);
+    });
+
+    let startX = null, startY = null, dx = 0, dy = 0, peakX = 0, peakY = 0, down = false, axis = null;
+
+    container.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (e.target.closest('.hourly-chart__modes')) return;
+      down = true; startX = e.clientX; startY = e.clientY; dx = 0; dy = 0; peakX = 0; peakY = 0; axis = null; this._chartDragged = false;
+    });
+    container.addEventListener('pointermove', (e) => {
+      if (!down || e.pointerType === 'touch') return;
+      dx = e.clientX - startX; dy = e.clientY - startY;
+      if (Math.abs(dx) > Math.abs(peakX)) peakX = dx;
+      if (Math.abs(dy) > Math.abs(peakY)) peakY = dy;
+      if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      }
+      if (axis === 'x') e.preventDefault();
+    });
+    container.addEventListener('pointerup', (e) => {
+      if (!down || e.pointerType === 'touch') return;
+      down = false;
+      if (axis === 'x' && Math.abs(peakX) > 55) { this._cycleChart(peakX < 0 ? 1 : -1); this._chartDragged = true; }
+      axis = null;
+    });
+    container.addEventListener('pointercancel', () => { down = false; axis = null; });
+
+    container.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.hourly-chart__modes')) return;
+      const t = e.touches[0];
+      if (!t) return;
+      down = true; startX = t.clientX; startY = t.clientY; dx = 0; dy = 0; peakX = 0; peakY = 0; axis = null; this._chartDragged = false;
+    }, { passive: true });
+    container.addEventListener('touchmove', (e) => {
+      if (!down) return;
+      const t = e.touches[0];
+      if (!t) return;
+      dx = t.clientX - startX; dy = t.clientY - startY;
+      if (Math.abs(dx) > Math.abs(peakX)) peakX = dx;
+      if (Math.abs(dy) > Math.abs(peakY)) peakY = dy;
+      if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      }
+      if (axis === 'x') e.preventDefault();
+    }, { passive: false });
+    container.addEventListener('touchend', () => {
+      if (!down) return;
+      down = false;
+      if (axis === 'x' && Math.abs(peakX) > 55) { this._cycleChart(peakX < 0 ? 1 : -1); this._chartDragged = true; }
+      axis = null;
+    });
+    container.addEventListener('touchcancel', () => { down = false; axis = null; });
+
+    container.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); this._cycleChart(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); this._cycleChart(1); }
+    });
   },
 
   renderWeather(weatherData, aqData, units, cityName, country, lat, lon, forecastDays) {

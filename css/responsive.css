@@ -78,15 +78,6 @@
   .section-head {
     flex-wrap: wrap;
   }
-
-  .chart-tabs {
-    justify-content: flex-start;
-  }
-
-  .chart-tabs .segmented__btn {
-    padding: 0.32rem 0.65rem;
-    font-size: 0.8rem;
-  }
 }
 
 @media (max-width: 480px) {

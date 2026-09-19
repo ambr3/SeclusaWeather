@@ -56,14 +56,16 @@ const WeatherIcons = {
   // Daily forecast: the day's WMO code can be rain/drizzle even when only a
   // brief spell occurred. Never show a precip icon unless the chance AND the
   // amount justify it; otherwise fall back to a partly-cloudy look.
-  dailyIcon(code, pop, rainSum, snowSum) {
+  // rainSum is mm in metric, inches in imperial — thresholds are per-unit.
+  dailyIcon(code, pop, rainSum, snowSum, units) {
     const g = this._group(code);
     if (g === 'thunder' || g === 'fog' || g === 'clear' || g === 'clouds') return code;
     const p = pop != null ? pop : 0;
     const rain = rainSum != null ? rainSum : 0;
     const snow = snowSum != null ? snowSum : 0;
+    const rainThresh = units === 'imperial' ? 0.04 : 1;
     const hasSnow = snow > 0 && p >= 30;
-    const hasRain = rain >= 1 && p >= 30;
+    const hasRain = rain >= rainThresh && p >= 30;
     const highChance = p >= 50;
     if (g === 'snow') return (hasSnow || highChance) ? 71 : 2;
     if (g === 'rain' || g === 'drizzle') return (hasRain || highChance) ? 61 : 2;
@@ -78,7 +80,7 @@ const WeatherIcons = {
   // "showers" day is never shown as a sun icon.
   _groupRep: { clear: 0, clearsome: 1, clouds: 2, overcast: 3, fog: 45, drizzle: 51, rain: 61, snow: 71, thunder: 95 },
 
-  dominantDayCode(dateStr, hourly, pop, rainSum, snowSum) {
+  dominantDayCode(dateStr, hourly, pop, rainSum, snowSum, units) {
     if (!hourly || !hourly.time || !hourly.weather_code) return null;
     const prefix = dateStr + 'T';
     const counts = {};
@@ -100,7 +102,8 @@ const WeatherIcons = {
     const p = pop != null ? pop : 0;
     const rain = rainSum != null ? rainSum : 0;
     const snow = snowSum != null ? snowSum : 0;
-    const hasPrecip = (rain >= 1 && p >= 30) || (snow > 0 && p >= 30) || p >= 50;
+    const rainThresh = units === 'imperial' ? 0.04 : 1;
+    const hasPrecip = (rain >= rainThresh && p >= 30) || (snow > 0 && p >= 30) || p >= 50;
     const precipGroups = ['drizzle', 'rain', 'snow', 'thunder'];
     const tiedPrecip = lead.filter((g) => precipGroups.includes(g));
     if (hasPrecip && tiedPrecip.length) return this._groupRep[tiedPrecip[0]];

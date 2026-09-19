@@ -1408,30 +1408,6 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 }
 
 /* Hourly Chart */
-.chart-tabs {
-  display: flex;
-  justify-content: flex-start;
-  gap: 0.35rem;
-  margin-bottom: 0.8rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  max-width: 100%;
-  padding: 0 0.25rem;
-}
-.chart-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.chart-tabs--scroll {
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.4rem, #000 calc(100% - 1.4rem), transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 1.4rem, #000 calc(100% - 1.4rem), transparent);
-  scroll-snap-type: x proximity;
-}
-
-.chart-tabs--scroll .segmented__btn {
-  scroll-snap-align: start;
-}
-
 .hourly-chart {
   position: relative;
   background:
@@ -1462,6 +1438,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.45rem;
 }
 
@@ -1473,12 +1450,95 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   color: var(--color-text-muted);
 }
 
-.chart-hint {
-  margin: -0.4rem 0 0.6rem;
-  font-size: 0.74rem;
+.hourly-chart__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hourly-chart__arrow {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.hourly-chart__arrow:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.hourly-chart__arrow:active {
+  transform: scale(0.92);
+}
+
+.hourly-chart__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.8rem;
+  max-width: 100%;
+}
+
+.hourly-chart__mode {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.7rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-card);
+  border: 1px solid var(--color-card-border);
+  border-radius: 50px;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(var(--blur));
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hourly-chart__mode:hover {
+  background: var(--color-card-hover);
+}
+
+.hourly-chart__mode.is-active {
+  background: linear-gradient(90deg, #5aa8ff, #8a7cff 50%, #ff9a5c);
+  color: #fff;
+  border-color: transparent;
+}
+
+.hourly-chart__hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
   color: var(--color-text-muted);
   text-align: center;
   font-style: italic;
+}
+
+.hourly-chart__hint kbd {
+  font-family: inherit;
+  font-size: 0.68rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--color-card-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hourly-chart:focus {
+  outline: none;
+}
+
+.hourly-chart:focus-visible {
+  outline: 2px solid #5aa8ff;
+  outline-offset: 2px;
 }
 
 .hourly-chart__svg {

@@ -20,8 +20,8 @@
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-192.svg">
 
-  <link rel="stylesheet" href="css/style.css?v=0.5.21">
-  <link rel="stylesheet" href="css/responsive.css?v=0.5.21">
+  <link rel="stylesheet" href="css/style.css?v=0.5.23">
+  <link rel="stylesheet" href="css/responsive.css?v=0.5.23">
   <link rel="preconnect" href="https://api.open-meteo.com">
   <link rel="preconnect" href="https://air-quality-api.open-meteo.com">
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com">
@@ -148,6 +148,7 @@
           id="searchInput"
           class="search-input"
           placeholder="Search city..."
+          maxlength="80"
           autocomplete="off"
           autocapitalize="words"
           spellcheck="false"
@@ -227,17 +228,7 @@
         </div>
         <div class="hourly-scroll" id="hourlyScroll" role="list"></div>
         <p class="tap-hint">Tap any hour to enlarge for more info</p>
-        <div class="chart-tabs segmented hidden" id="chartTabs" role="tablist" aria-label="Chart type">
-          <button type="button" class="segmented__btn is-active" id="chartTempBtn" role="tab" aria-selected="true">Temp &amp; Dew</button>
-          <button type="button" class="segmented__btn" id="chartRainBtn" role="tab" aria-selected="false">Rain</button>
-          <button type="button" class="segmented__btn" id="chartWindBtn" role="tab" aria-selected="false">Wind</button>
-          <button type="button" class="segmented__btn" id="chartHumidityBtn" role="tab" aria-selected="false">Humidity</button>
-          <button type="button" class="segmented__btn" id="chartCloudBtn" role="tab" aria-selected="false">Cloud</button>
-          <button type="button" class="segmented__btn" id="chartPressureBtn" role="tab" aria-selected="false">Pressure</button>
-          <button type="button" class="segmented__btn" id="chartSolarBtn" role="tab" aria-selected="false">Solar</button>
-        </div>
-        <div class="chart-hint hidden" id="chartHint">Swipe the tabs to see more charts &rarr;</div>
-        <div class="hourly-chart hidden" id="hourlyChart" aria-label="Hourly chart"></div>
+        <div class="hourly-chart hidden" id="hourlyChart" role="region" aria-roledescription="chart" aria-label="Hourly chart — swipe or use arrow keys to change metric">
       </section>
 
 
@@ -249,7 +240,7 @@
 
   <footer class="footer">
     <p>
-      Seclusa Weather v0.5.21 &mdash; No tracking. No ads. No cookies.
+      Seclusa Weather v0.5.23 &mdash; No tracking. No ads. No cookies.
       <br>
       Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a> &mdash; <a href="https://open-meteo.com/license" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
       <br>
@@ -266,11 +257,11 @@
 
   <div class="hourly-modal hidden" id="hourlyModal" role="dialog" aria-modal="true" aria-label="Forecast details"></div>
 
-  <script src="js/config.js?v=0.5.21"></script>
-  <script src="js/utils.js?v=0.5.21"></script>
-  <script src="js/icons.js?v=0.5.21"></script>
-  <script src="js/api.js?v=0.5.21"></script>
-  <script src="js/ui.js?v=0.5.21"></script>
-  <script src="js/app.js?v=0.5.21"></script>
+  <script src="js/config.js?v=0.5.23"></script>
+  <script src="js/utils.js?v=0.5.23"></script>
+  <script src="js/icons.js?v=0.5.23"></script>
+  <script src="js/api.js?v=0.5.23"></script>
+  <script src="js/ui.js?v=0.5.23"></script>
+  <script src="js/app.js?v=0.5.23"></script>
 </body>
 </html>
