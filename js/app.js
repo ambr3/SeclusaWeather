@@ -208,9 +208,18 @@ const App = {
       UI.markOffline(!navigator.onLine);
     }
 
+    if (navigator.onLine) {
+      this.startAutoRefresh();
+      if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) {
+        this.refreshSilently();
+      }
+    }
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch((e) => { console.debug('SW registration failed:', e); });
     }
+
+    this._bindPullToRefresh();
   },
 
   dismissSplash() {
@@ -223,6 +232,78 @@ const App = {
   startAutoRefresh() {
     if (this._refreshTimer) return;
     this._refreshTimer = setInterval(() => this.refreshSilently(), 30 * 60 * 1000);
+  },
+
+  _bindPullToRefresh() {
+    if (!('ontouchstart' in window)) return;
+    const PULL_DIST_PROGRESS = 80;
+    const PULL_DIST_MAX = 130;
+    const TRIGGER = 70;
+    const start = { y: null, x: null };
+    let pulling = false;
+    let dist = 0;
+
+    const resetTracking = () => { start.y = null; start.x = null; pulling = false; dist = 0; };
+
+    document.addEventListener('touchstart', (e) => {
+      if (document.body.classList.contains('has-modal')) return;
+      if (window.scrollY > 0) return;
+      const t = e.touches[0];
+      if (!t) return;
+      start.y = t.clientY;
+      start.x = t.clientX;
+      pulling = false;
+      dist = 0;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (start.y == null) return;
+      const t = e.touches[0];
+      if (!t) return;
+      if (window.scrollY > 0) { resetTracking(); return; }
+      const dy = t.clientY - start.y;
+      const dx = t.clientX - start.x;
+      if (!pulling) {
+        if (dy <= 6) return;
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) { resetTracking(); return; }
+        pulling = true;
+      }
+      e.preventDefault();
+      dist = Math.min(PULL_DIST_MAX, PULL_DIST_PROGRESS * (1 - Math.exp(-dy / PULL_DIST_PROGRESS)));
+      this._updatePullIndicator(dist, TRIGGER);
+    }, { passive: false });
+
+    const finish = () => {
+      if (start.y == null) return;
+      const triggered = pulling && dist >= TRIGGER;
+      resetTracking();
+      this._resetPullIndicator();
+      if (!triggered) return;
+      if (navigator.onLine) {
+        this.reloadCurrent();
+      } else {
+        UI.showError('You are offline — check your connection to refresh.');
+      }
+    };
+
+    document.addEventListener('touchend', finish, { passive: true });
+    document.addEventListener('touchcancel', finish, { passive: true });
+  },
+
+  _updatePullIndicator(dist, triggerAt) {
+    const el = this.$('ptrIndicator');
+    if (!el) return;
+    el.style.transform = `translateY(${Math.max(0, dist - 44)}px)`;
+    const label = el.querySelector('.ptr-indicator__label');
+    if (label) label.textContent = dist >= triggerAt ? 'Release to refresh' : 'Pull to refresh';
+  },
+
+  _resetPullIndicator() {
+    const el = this.$('ptrIndicator');
+    if (!el) return;
+    el.style.transform = '';
+    const label = el.querySelector('.ptr-indicator__label');
+    if (label) label.textContent = 'Pull to refresh';
   },
 
   updateDynamicText() {

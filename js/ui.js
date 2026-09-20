@@ -130,11 +130,13 @@ const UI = {
   },
 
   // Values for the "Now" tile/modal slot, preferring the live current-weather
-  // observation so it stays consistent with the summary card.
+  // observation so it stays consistent with the summary card. Rain % is the
+  // current-hour probability (only shown when this hour actually has rain or
+  // snow expected), never the whole-day maximum.
   _nowFromCurrent(cur, hourly, units) {
     if (!cur) return null;
-    const dayKey = this._todayDateKey();
-    const pop = dayKey ? this.daytimeMaxPop(dayKey, hourly) : null;
+    const startIdx = this._hourlyStartIdx(hourly);
+    const pop = this._meaningfulNowPop(cur, hourly, startIdx);
     return {
       pop,
       temp: cur.temperature_2m != null ? Utils.formatTemp(cur.temperature_2m, units) : null,
@@ -159,8 +161,8 @@ const UI = {
     if (!data || !data.current) return;
     const c = data.current;
     const d = data.daily || {};
-    const currentPop = (d.time && d.time[0]) ? this.daytimeMaxPop(d.time[0], data.hourly) : null;
-    const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, currentPop, c.precipitation ?? 0, c.snowfall ?? 0);
+    const dayPop = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
+    const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, dayPop, c.precipitation ?? 0, c.snowfall ?? 0);
     const icon = WeatherIcons.get(iconCode, c.is_day);
     const temp = Utils.formatTemp(c.temperature_2m, units);
     const feels = Utils.formatTemp(c.apparent_temperature, units);
@@ -177,8 +179,6 @@ const UI = {
 
     const dayHigh = d.temperature_2m_max && d.temperature_2m_max[0] != null ? Utils.formatTemp(d.temperature_2m_max[0], units) : null;
     const dayLow = d.temperature_2m_min && d.temperature_2m_min[0] != null ? Utils.formatTemp(d.temperature_2m_min[0], units) : null;
-    const todayPop = (d.time && d.time[0]) ? this.daytimeMaxPop(d.time[0], data.hourly) : null;
-    const dayPop = todayPop != null ? todayPop : (d.precipitation_probability_max != null ? Math.round(d.precipitation_probability_max[0] ?? 0) : null);
     const windUnit = Utils.getWindUnit(UI.windUnit);
     const dayWind = c.wind_speed_10m != null ? `${Math.round(c.wind_speed_10m)} ${windUnit}` : null;
     const summaryParts = [];
@@ -323,8 +323,7 @@ const UI = {
     const boxes = [];
 
     const precipNow = Utils.formatPrecip(c.precipitation, units) || (units === 'imperial' ? '0 in' : '0 mm');
-    const todayPop = (d.time && d.time[0]) ? this.daytimeMaxPop(d.time[0], data.hourly) : null;
-    const popToday = todayPop != null ? todayPop : (d.precipitation_probability_max != null ? Math.round(d.precipitation_probability_max[0] ?? 0) : null);
+    const popToday = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
     const rainToday = d.rain_sum && d.rain_sum[0] != null ? Math.round(d.rain_sum[0] * 10) / 10 : null;
     const snowToday = d.snowfall_sum && d.snowfall_sum[0] != null ? d.snowfall_sum[0] : null;
     const precipSub = [];
@@ -575,6 +574,42 @@ const UI = {
     return max;
   },
 
+  // Rain chance that should actually be advertised for a day. A nonzero max
+  // hourly probability alone is too noisy on clear days (open-meteo can report
+  // e.g. 60% while rain_sum stays 0.0), so it only surfaces when the forecast
+  // actually includes precipitation. Mirrors the icon logic in
+  // WeatherIcons.dailyIcon.
+  meaningfulDayPop(dateStr, daily, hourly) {
+    if (!daily || !daily.time) return null;
+    const idx = daily.time.indexOf(String(dateStr));
+    const dailyMax = idx >= 0 && daily.precipitation_probability_max
+      ? daily.precipitation_probability_max[idx]
+      : null;
+    const pop = this.daytimeMaxPop(dateStr, hourly) ?? dailyMax;
+    if (pop == null || pop <= 0) return null;
+    const pick = (key) => idx >= 0 && daily[key] && daily[key][idx] != null ? daily[key][idx] : 0;
+    if (pick('rain_sum') > 0 || pick('snowfall_sum') > 0 || pick('precipitation_sum') > 0) return pop;
+    return null;
+  },
+
+  // Rain chance for the "Now" slot: the current hour's probability is only
+  // surfaced when precipitation is actually happening or expected this hour —
+  // the model often reports a large chance for the current hour while the sky
+  // stays clear and dry, which must never read as "X% rain now".
+  _meaningfulNowPop(cur, hourly, startIdx) {
+    if (!cur) return null;
+    const prob = hourly && hourly.precipitation_probability
+      ? hourly.precipitation_probability[startIdx]
+      : null;
+    if (prob == null || prob <= 0) return null;
+    const hourPrecip = hourly && hourly.precipitation && hourly.precipitation[startIdx] != null ? hourly.precipitation[startIdx] : 0;
+    const hourSnow = hourly && hourly.snowfall && hourly.snowfall[startIdx] != null ? hourly.snowfall[startIdx] : 0;
+    const curPrecip = cur.precipitation != null ? cur.precipitation : 0;
+    const curSnow = cur.snowfall != null ? cur.snowfall : 0;
+    if (curPrecip > 0 || curSnow > 0 || hourPrecip > 0 || hourSnow > 0) return prob;
+    return null;
+  },
+
   // Min/max across the 24 hours of a date for a given hourly key (e.g. dew point).
   dayMinMax(dateStr, hourly, key) {
     if (!hourly || !hourly.time || !hourly[key]) return null;
@@ -604,7 +639,7 @@ const UI = {
     const rowMarkup = (date, i) => {
       const max = daily.temperature_2m_max && daily.temperature_2m_max[i] != null ? Math.round(daily.temperature_2m_max[i]) : '—';
       const min = daily.temperature_2m_min && daily.temperature_2m_min[i] != null ? Math.round(daily.temperature_2m_min[i]) : '—';
-      const pop = this.daytimeMaxPop(date, hourly) ?? (daily.precipitation_probability_max != null ? Math.round(daily.precipitation_probability_max[i] ?? 0) : 0);
+      const pop = this.meaningfulDayPop(date, daily, hourly) ?? 0;
       const rainSum = daily.rain_sum ? daily.rain_sum[i] : null;
       const snowSum = daily.snowfall_sum ? daily.snowfall_sum[i] : null;
       const weatherCode = WeatherIcons.dominantDayCode(date, hourly, pop, rainSum, snowSum, units) ?? daily.weather_code[i];
@@ -1058,7 +1093,7 @@ const UI = {
     const low = d.temperature_2m_min && d.temperature_2m_min[i] != null ? Utils.formatTemp(d.temperature_2m_min[i], units) : '—';
     const feelsHigh = d.apparent_temperature_max && d.apparent_temperature_max[i] != null ? Utils.formatTemp(d.apparent_temperature_max[i], units) : null;
     const feelsLow = d.apparent_temperature_min && d.apparent_temperature_min[i] != null ? Utils.formatTemp(d.apparent_temperature_min[i], units) : null;
-    const pop = this.daytimeMaxPop(date, this._forecastHourly) ?? (d.precipitation_probability_max != null ? Math.round(d.precipitation_probability_max[i] ?? 0) : 0);
+    const pop = this.meaningfulDayPop(date, d, this._forecastHourly) ?? 0;
     const rainSum = d.rain_sum ? d.rain_sum[i] : null;
     const snowSum = d.snowfall_sum ? d.snowfall_sum[i] : null;
     const windMax = d.wind_speed_10m_max && d.wind_speed_10m_max[i] != null ? Math.round(d.wind_speed_10m_max[i]) : null;

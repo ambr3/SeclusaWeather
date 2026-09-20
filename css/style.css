@@ -664,6 +664,39 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   transform: scale(1.03);
 }
 
+/* Pull-to-refresh indicator */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  color: var(--color-text);
+  text-shadow: var(--text-shadow);
+  pointer-events: none;
+  transform: translateY(-80px);
+  transition: transform 0.18s ease-out;
+}
+
+.ptr-indicator__spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-card-border);
+  border-top-color: var(--color-text);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.ptr-indicator__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* Loading */
 .loading {
   display: flex;

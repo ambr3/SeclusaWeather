@@ -68,7 +68,7 @@ Your data is your business. That's the whole point.
 | 🚫 **Zero tracking** | No analytics, no cookies, no fingerprinting, no third-party scripts |
 | 🖥️ **No server** | Pure static site — nothing runs on a server |
 | 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
-| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app sends nothing — the last forecast is shown straight from the on-device cache and updates only after you act (search, tap the crosshair, or tap the cached-forecast notice — see the note below) |
+| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app shows your saved forecast straight from the on-device cache; once you've ever loaded a location, that same location is silently refreshed on open (when online). Nothing is sent until you've first chosen a place — see the note below |
 | 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
 | 🧹 **Self-cleaning cache** | Cached API responses remove themselves after 7 days; the on-device forecast snapshot is overwritten on every refresh |
 | 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
@@ -79,7 +79,7 @@ Your data is your business. That's the whole point.
 | 🖼️ **Can't be embedded** | The app won't run inside other websites (best-effort — GitHub Pages limits header support, and there's nothing to gain from embedding anyway) |
 | 📜 **Open source** | GPL-3.0 — read every line |
 
-> ⚠️ **Geolocation note:** your coordinates are *only* sent to the weather API when you ask for it — search a city, tap "Use my location", or tap the cached-forecast notice. The app never sends anything when you open it; it shows your last saved forecast straight from the device. Want the app to keep itself fresh? After you have loaded a forecast once, it silently refreshes every 30 minutes. Use Help → **"Erase my data"** to remove the saved city, coordinates, and every cache. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
+> ⚠️ **Geolocation note:** your coordinates are *only* sent to the weather API when you ask for it — search a city, tap "Use my location", or tap the cached-forecast notice. The app never sends anything when you open it unless you have previously loaded a location; then it silently refreshes that saved location on open (when online) and, while the page is open, every 30 minutes. It fully reflects the privacy stance of this README. Use Help → **"Erase my data"** to remove the saved city, coordinates, and every cache. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
 
 ---
 
