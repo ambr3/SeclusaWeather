@@ -1,6 +1,6 @@
 {
-  "name": "Weather",
-  "short_name": "Weather",
+  "name": "Seclusa Weather",
+  "short_name": "Seclusa Weather",
   "description": "No tracking. No ads. No cookies.",
   "start_url": "./",
   "scope": "./",

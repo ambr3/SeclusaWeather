@@ -33,10 +33,10 @@ const API = {
     }));
   },
 
-  async getWeather(lat, lon, units, windUnit, forecastDays) {
+  async getWeather(lat, lon, units, windUnit) {
     const tempUnit = units === 'imperial' ? 'fahrenheit' : 'celsius';
     const precipUnit = units === 'imperial' ? 'inch' : 'mm';
-    const days = forecastDays === 14 ? 14 : 7;
+    const days = 14;
     const params = [
       `latitude=${lat}`,
       `longitude=${lon}`,

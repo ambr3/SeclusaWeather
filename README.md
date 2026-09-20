@@ -37,10 +37,10 @@ Keeps your weather your own. Seclusa Weather is a **pure static, open-source wea
 ### 🌡️ Forecast
 - **Current conditions** — temperature, feels-like, humidity, pressure, wind, precipitation, UV, visibility
 - **Hourly forecast** — scrollable 24h / all-day view with a multi-metric chart
-  *(Temp & Dew · Rain · Wind · Humidity · Cloud · Pressure · Sun strength)*
+  *(Temp & Dew · Rain · Sun strength)*
 - **Daily forecast** — 7-day or 14-day cards with a toggle
 - **Sunrise/sunset arc** — a live SVG that shows the sun *and* moon arcing across your sky
-- **Auto-refresh** — silently stays fresh every 30 minutes
+- **Auto-refresh** — once you've loaded a forecast, it silently stays fresh every 30 minutes
 
 ### 🌍 Air & Environment
 - **Air quality index** — EU or US AQI with PM2.5, PM10, NO₂, O₃, SO₂, CO breakdown
@@ -54,7 +54,7 @@ Keeps your weather your own. Seclusa Weather is a **pure static, open-source wea
 ### 🎨 Interface
 - **Dark / light themes** with dynamic weather backgrounds at sunrise, rain, snow, thunder, fog, and night
 - **Metric / imperial toggle** — saved between visits
-- **Touch-friendly 24/48h hourly list** — tap any hour (or any forecast day) for full details
+- **Touch-friendly 24h / all-hours hourly list** — tap any hour (or any forecast day) for full details
 - Smooth fade-in animations, fully responsive
 
 ---
@@ -68,7 +68,7 @@ Your data is your business. That's the whole point.
 | 🚫 **Zero tracking** | No analytics, no cookies, no fingerprinting, no third-party scripts |
 | 🖥️ **No server** | Pure static site — nothing runs on a server |
 | 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
-| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Saved coordinates are re-sent to Open-Meteo only when a forecast is refreshed (see the geolocation note below) |
+| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app sends nothing — the last forecast is shown straight from the on-device cache and updates only after you act (search, tap the crosshair, or tap the cached-forecast notice — see the note below) |
 | 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
 | 🧹 **Self-cleaning cache** | Cached API responses remove themselves after 7 days; the on-device forecast snapshot is overwritten on every refresh |
 | 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
@@ -79,7 +79,7 @@ Your data is your business. That's the whole point.
 | 🖼️ **Can't be embedded** | The app won't run inside other websites (best-effort — GitHub Pages limits header support, and there's nothing to gain from embedding anyway) |
 | 📜 **Open source** | GPL-3.0 — read every line |
 
-> ⚠️ **Geolocation note:** your coordinates *are* sent to the weather API when you view a forecast. It's the only way to get a local forecast — but it's disclosed, opt-in, and never logged or shared. If you previously used "my location", the app automatically re-sends those saved coordinates to refresh the forecast on **every visit**; use Help → **"Erase my data"** to remove them. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
+> ⚠️ **Geolocation note:** your coordinates are *only* sent to the weather API when you ask for it — search a city, tap "Use my location", or tap the cached-forecast notice. The app never sends anything when you open it; it shows your last saved forecast straight from the device. Want the app to keep itself fresh? After you have loaded a forecast once, it silently refreshes every 30 minutes. Use Help → **"Erase my data"** to remove the saved city, coordinates, and every cache. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
 
 ---
 

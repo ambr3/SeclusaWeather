@@ -22,7 +22,7 @@ const UI = {
   _hourlyModalBound: false,
   _modalKeyHandler: null,
   _chartSwipeBound: false,
-  CHART_MODES: ['temp', 'rain', 'wind', 'humidity', 'cloud', 'pressure', 'solar'],
+  CHART_MODES: ['temp', 'rain', 'solar'],
 
   _getMeasureCtx() {
     if (!this._measureCanvas) {
@@ -140,7 +140,23 @@ const UI = {
     if (dayWind) summaryParts.push(`Wind ${dayWind}`);
     const daySummary = summaryParts.length ? summaryParts.join(' · ') : '';
 
-    const ARC = [[0,100],[10,78],[20,58],[30,42],[40,31],[50,28],[60,31],[70,42],[80,58],[90,78],[100,100]];
+    const ARC = (() => {
+      const pts = [];
+      const n = 64;
+      const inset = 10;
+      const base = 66;
+      const apexY = 24;
+      const rx = 50 - inset;
+      const ry = base - apexY;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const th = Math.PI * (1 - t);
+        const x = 50 + rx * Math.cos(th);
+        const y = base - ry * Math.sin(th);
+        pts.push([+x.toFixed(2), +y.toFixed(2)]);
+      }
+      return pts;
+    })();
     this._arc = { ARC, tz: this._tz, sunrise: d.sunrise && d.sunrise[0], sunset: d.sunset && d.sunset[0], moonrise: d.moonrise && d.moonrise[0], moonset: d.moonset && d.moonset[0] };
 
     const sunArc = this._arcFor(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], this._tz);
@@ -184,10 +200,13 @@ const UI = {
       ${phaseRow ? `<div class="current-weather__phase">${phaseRow}</div>` : ''}
       <div class="current-weather__arc" aria-hidden="true">
         <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <polyline class="current-weather__arc-line" points="0,100 10,78 20,58 30,42 40,31 50,28 60,31 70,42 80,58 90,78 100,100"/>
+          <line class="current-weather__arc-horizon" x1="0" y1="66" x2="100" y2="66" vector-effect="non-scaling-stroke"/>
+          <line class="current-weather__arc-noonline" x1="50" y1="24" x2="50" y2="66" vector-effect="non-scaling-stroke"/>
+          <polyline class="current-weather__arc-line" points="${ARC.map((p) => p.join(',')).join(' ')}" vector-effect="non-scaling-stroke"/>
         </svg>
         <div class="current-weather__arc-label current-weather__arc-label--rise">${sunrise !== '—' ? sunrise : ''}</div>
         <div class="current-weather__arc-label current-weather__arc-label--set">${sunset !== '—' ? sunset : ''}</div>
+        <div class="current-weather__arc-noon">Noon</div>
         <div class="current-weather__arc-orb current-weather__arc-sun${sunArc && sunArc.below ? ' is-below' : ''}" style="${sunArc ? `left:${sunArc.pos.left}%;top:${sunArc.pos.top}%` : 'display:none'}">${WeatherIcons._sun()}</div>
         <div class="current-weather__arc-orb current-weather__arc-moon${moonArc && moonArc.below ? ' is-below' : ''}" style="${moonArc ? `left:${moonArc.pos.left}%;top:${moonArc.pos.top}%` : 'display:none'}">${WeatherIcons._moon()}</div>
       </div>
@@ -253,7 +272,6 @@ const UI = {
 
     const c = data.current;
     const d = data.daily || {};
-    const windUnit = Utils.getWindUnit(UI.windUnit);
 
     const boxes = [];
 
@@ -268,15 +286,10 @@ const UI = {
     if (snowLabel) precipSub.push(`${snowLabel} snow`);
     if (rainToday > 0) precipSub.push(`${Utils.formatPrecip(rainToday, units)} rain`);
 
-    const windDir = c.wind_direction_10m != null ? Math.round(c.wind_direction_10m) : null;
-    const windArrow = windDir != null ? this._windArrowSVG(windDir, 'detail-box__arrow', 36) : '';
-
     const uv = d.uv_index_max && d.uv_index_max[0] != null ? d.uv_index_max[0] : null;
     const uvClear = d.uv_index_clear_sky_max && d.uv_index_clear_sky_max[0] != null ? d.uv_index_clear_sky_max[0] : null;
     const uvInfo = uv != null ? Utils.getUVLevel(uv) : null;
 
-    const windSpeed = c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null;
-    const gustSpeed = c.wind_gusts_10m != null ? Math.round(c.wind_gusts_10m) : null;
     const humidity = c.relative_humidity_2m != null ? Math.round(c.relative_humidity_2m) : null;
     const pressure = c.surface_pressure != null ? Math.round(c.surface_pressure) : null;
     const pressureMsl = c.pressure_msl != null ? Math.round(c.pressure_msl) : null;
@@ -284,7 +297,6 @@ const UI = {
 
     const conditions = [
       { label: 'Precip', icon: this._metricIcon('precip'), value: precipNow, sub: precipSub.length ? precipSub.join(' · ') : 'Dry today' },
-      { label: 'Wind', icon: this._metricIcon('wind'), value: windSpeed != null ? `${windSpeed} ${windUnit}` : '—', sub: `${windArrow}<span class="detail-box__dir">${Utils.getWindDirection(c.wind_direction_10m)}</span> · gusts ${gustSpeed != null ? `${gustSpeed} ${windUnit}` : '—'}` },
       { label: 'Humidity', icon: this._metricIcon('humidity'), value: humidity != null ? `${humidity}%` : '—', sub: `Dew point ${dewPoint}` },
       { label: 'UV Index', icon: this._metricIcon('uv'), value: uv != null ? `<span class="uv-badge" style="background:${uvInfo.color}">${Math.round(uv)}</span>` : '—', sub: uv != null ? `${uvInfo.label}${uvClear != null ? ` · clear sky ${Math.round(uvClear)}` : ''}` : 'Not available' },
       { label: 'Visibility', icon: this._metricIcon('visibility'), value: Utils.formatVisibility(c.visibility, UI.visUnit), sub: 'Current visibility' },
@@ -299,7 +311,7 @@ const UI = {
       else if (cape < 2000) capeInfo = { label: 'Moderate', color: '#ff9800', desc: 'Thunderstorms possible' };
       else if (cape < 3000) capeInfo = { label: 'High', color: '#f44336', desc: 'Strong storms likely' };
       else capeInfo = { label: 'Extreme', color: '#880e4f', desc: 'Severe storms expected' };
-      conditions.push({ label: 'Thunderstorm risk', icon: this._metricIcon('bolt'), wide: true, value: `<span style="color:${capeInfo.color}">${capeInfo.label}</span>`, sub: capeInfo.desc });
+      conditions.push({ label: 'Thunderstorm risk', icon: this._metricIcon('bolt'), value: `<span style="color:${capeInfo.color}">${capeInfo.label}</span>`, sub: capeInfo.desc });
     }
 
     const aqC = aq && aq.current;
@@ -418,7 +430,7 @@ const UI = {
     }
   },
 
-  renderWindCompass(lat, lon, windLabel, windDir, gustLabel, dayMaxLabel) {
+  renderWindCompass(lat, lon, windLabel, windDir, gustLabel, todayWind) {
     const container = this.$('compassContainer');
     const section = this.$('compassSection');
     if (!container || !section) return;
@@ -465,6 +477,11 @@ const UI = {
 
     container.innerHTML = `
       <div class="weather-compass">
+        <div class="weather-compass__wind">
+          <span class="weather-compass__now-label">Wind now</span>
+          <span class="weather-compass__wind-speed">${windLabel || 'Wind —'}${gustLabel ? `<span class="weather-compass__gust"> &middot; gusts ${gustLabel}</span>` : ''}</span>
+          ${dirDeg != null ? `<span class="weather-compass__wind-dir">blowing ${toDir} &middot; from ${fromDir}</span>` : ''}
+        </div>
         <div class="weather-compass__rose">
           <svg viewBox="0 0 100 100" class="weather-compass__svg" role="img"
                aria-label="${dirDeg != null ? `Wind from ${fromDir}, blowing toward ${toDir}` : 'Wind direction not available'}">
@@ -476,14 +493,17 @@ const UI = {
             <circle cx="50" cy="50" r="3.4" fill="currentColor" opacity="0.6"/>
           </svg>
         </div>
-        <div class="weather-compass__meta">
+        ${todayWind ? `
+        <div class="weather-compass__today" aria-label="Today's wind detail">
+          <span class="weather-compass__today-title">Today's wind</span>
+          ${todayWind.maxGust ? `<span class="weather-compass__today-row"><b>Gustiest</b> ${todayWind.maxGust}</span>` : ''}
+          ${todayWind.maxWind ? `<span class="weather-compass__today-row"><b>Strongest</b> ${todayWind.maxWind}</span>` : ''}
+          ${todayWind.minWind ? `<span class="weather-compass__today-row"><b>Calmest</b> ${todayWind.minWind}</span>` : ''}
+          ${todayWind.prevailing ? `<span class="weather-compass__today-row"><b>Prevailing</b> from ${todayWind.prevailing}</span>` : ''}
+        </div>` : ''}
+        <div class="weather-compass__location">
           <div class="weather-compass__city">${cityName}${country ? `<span class="weather-compass__country">${country}</span>` : ''}</div>
           <div class="weather-compass__coords">${Number(lat).toFixed(2)}&deg;, ${Number(lon).toFixed(2)}&deg;</div>
-          <div class="weather-compass__wind">
-            <span class="weather-compass__wind-speed">${windLabel || 'Wind —'}${gustLabel ? `<span class="weather-compass__gust"> &middot; gusts ${gustLabel}</span>` : ''}</span>
-            ${dirDeg != null ? `<span class="weather-compass__wind-dir">blowing ${toDir} &middot; from ${fromDir}</span>` : ''}
-            ${dayMaxLabel ? `<span class="weather-compass__wind-max">${dayMaxLabel}</span>` : ''}
-          </div>
         </div>
       </div>
     `;
@@ -524,17 +544,17 @@ const UI = {
     return min == null ? null : { min, max };
   },
 
-  renderForecast(daily, units, days, hourly) {
+  renderForecast(daily, units, hourly) {
     if (!daily || !daily.time || !daily.time.length) return;
     if (this._modalOpen) this.closeHourlyDetail();
-    const end = days >= 14 ? 14 : 7;
+    const count = Math.min(14, daily.time.length);
+    const pageSize = 7;
     this._forecastDaily = daily;
-    this._forecastCount = Math.min(end, daily.time.length);
+    this._forecastCount = count;
     this._forecastUnits = units;
     this._forecastHourly = hourly;
-    const MAX_VISIBLE = 5;
-    const isLong = end === 14 && daily.time.slice(0, end).length > MAX_VISIBLE;
-    const cards = daily.time.slice(0, end).map((date, i) => {
+
+    const rowMarkup = (date, i) => {
       const max = daily.temperature_2m_max && daily.temperature_2m_max[i] != null ? Math.round(daily.temperature_2m_max[i]) : '—';
       const min = daily.temperature_2m_min && daily.temperature_2m_min[i] != null ? Math.round(daily.temperature_2m_min[i]) : '—';
       const pop = this.daytimeMaxPop(date, hourly) ?? (daily.precipitation_probability_max != null ? Math.round(daily.precipitation_probability_max[i] ?? 0) : 0);
@@ -567,34 +587,56 @@ const UI = {
           </div>
         </div>
       `;
-    }).join('');
+    };
+
+    const pages = [];
+    for (let start = 0; start < count; start += pageSize) {
+      const rows = daily.time.slice(start, Math.min(start + pageSize, count))
+        .map((date, j) => rowMarkup(date, start + j)).join('');
+      pages.push(`<div class="forecast-card__page" role="group">${rows}</div>`);
+    }
+    const dots = pages.map((_, p) => `
+      <button type="button" class="forecast-card__pagerdot${p === 0 ? ' is-active' : ''}" data-page="${p}"
+              aria-label="Days ${p * pageSize + 1} to ${Math.min((p + 1) * pageSize, count)}"></button>`).join('');
+
     this.$('forecastCards').innerHTML = `
-      <div class="forecast-card forecast-card--list${isLong ? ' forecast-card--scroll' : ''}">
-        <div class="forecast-card__rows">${cards}</div>
-        ${isLong ? '<div class="forecast-card__fade"></div>' : ''}
-        ${isLong ? `<div class="forecast-card__hint hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12l7 7 7-7"/></svg><span>Swipe through the days</span></div>` : ''}
-        ${isLong ? `
-        <button type="button" class="forecast-card__expand" aria-expanded="false">
-          <span class="forecast-card__expand-label">Show all days</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>` : ''}
+      <div class="forecast-card forecast-card--pager">
+        <div class="forecast-card__pages" role="list">${pages.join('')}</div>
+        <div class="forecast-card__pager" role="tablist" aria-label="Forecast days">
+          ${dots}
+          <span class="forecast-card__pagerlabel">
+            <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
+            <span class="forecast-card__pagerlead">Swipe to see</span>
+            <span class="forecast-card__pagerrange">days 1–7</span>
+            <span class="forecast-card__pagerlead forecast-card__pagerlead--tap">· tap any day to enlarge for more info</span>
+          </span>
+        </div>
       </div>
     `;
 
-    if (isLong) {
-      const rowsEl = this.$('forecastCards').querySelector('.forecast-card__rows');
-      const fade = this.$('forecastCards').querySelector('.forecast-card__fade');
-      const hint = this.$('forecastCards').querySelector('.forecast-card__hint');
-      const updateFade = () => {
-        if (rowsEl && fade) {
-          const expanded = rowsEl.parentElement.classList.contains('forecast-card--expanded');
-          const atBottom = rowsEl.scrollHeight - rowsEl.scrollTop - rowsEl.clientHeight < 10;
-          fade.classList.toggle('hidden', expanded || atBottom);
-          if (hint) hint.classList.toggle('hidden', expanded || atBottom);
-        }
+    const pagerEl = this.$('forecastCards').querySelector('.forecast-card__pager');
+    const pagesEl = this.$('forecastCards').querySelector('.forecast-card__pages');
+    if (pages.length > 1 && pagerEl && pagesEl) {
+      const dotsEl = pagerEl.querySelectorAll('.forecast-card__pagerdot');
+      const labelEl = pagerEl.querySelector('.forecast-card__pagerlabel');
+      const rangeEl = pagerEl.querySelector('.forecast-card__pagerrange');
+      const syncDots = () => {
+        const page = Math.round(pagesEl.scrollLeft / pagesEl.clientWidth) || 0;
+        dotsEl.forEach((dot, p) => dot.classList.toggle('is-active', p === page));
+        const other = page === 0 ? 1 : 0;
+        const first = other * pageSize + 1;
+        const last = Math.min((other + 1) * pageSize, count);
+        if (labelEl) labelEl.classList.toggle('is-back', page === 1);
+        if (rangeEl) rangeEl.textContent = `days ${first}–${last}`;
       };
-      rowsEl.addEventListener('scroll', updateFade, { passive: true });
-      updateFade();
+      pagesEl.addEventListener('scroll', syncDots, { passive: true });
+      pagerEl.addEventListener('click', (e) => {
+        const dot = e.target.closest('.forecast-card__pagerdot');
+        if (!dot) return;
+        const page = parseInt(dot.dataset.page, 10) || 0;
+        pagesEl.scrollTo({ left: page * pagesEl.clientWidth, behavior: 'smooth' });
+      });
+      syncDots();
     }
   },
 
@@ -613,8 +655,7 @@ const UI = {
     let tomorrowKey = null;
     const advanceDay = (dateStr) => {
       const [y, m, d] = dateStr.split('-').map(Number);
-      const next = new Date(y, m - 1, d + 1);
-      return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+      return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
     };
     try {
       const dtf = new Intl.DateTimeFormat('en-CA', {
@@ -684,7 +725,7 @@ const UI = {
     this.$('hourlyScroll').innerHTML = `
       <div class="hourly-card hourly-card--hscroll" role="list">
         <div class="hourly-card__strip">${tilesHtml}</div>
-        <div class="hourly-card__hint hidden" id="hourlyHint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12h14"/><path d="M13 5l7 7-7 7"/></svg><span>Swipe through the hours</span></div>
+        <div class="hourly-card__hint" id="hourlyHint"><svg class="hourly-card__hinticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg><span>Swipe to see more hours · Tap any hour to enlarge for more info</span></div>
       </div>
     `;
 
@@ -694,12 +735,10 @@ const UI = {
 
   _updateHourlyScroll() {
     const strip = document.querySelector('.hourly-card__strip');
-    const hint = document.getElementById('hourlyHint');
     const card = strip && strip.closest('.hourly-card--hscroll');
     if (!strip) return;
     const overflow = strip.scrollWidth > strip.clientWidth + 1;
     card.classList.toggle('hourly-card--overflow', overflow);
-    if (hint) hint.classList.toggle('hidden', !overflow);
   },
 
   _bindHourlyModal() {
@@ -715,19 +754,6 @@ const UI = {
     const fScroll = this.$('forecastCards');
     if (fScroll) {
       fScroll.addEventListener('click', (e) => {
-        const expandBtn = e.target.closest('.forecast-card__expand');
-        if (expandBtn) {
-          const list = expandBtn.closest('.forecast-card--list');
-          if (list) {
-            const expanded = list.classList.toggle('forecast-card--expanded');
-            expandBtn.setAttribute('aria-expanded', String(expanded));
-            const label = expandBtn.querySelector('.forecast-card__expand-label');
-            if (label) label.textContent = expanded ? 'Show fewer days' : 'Show all days';
-            const fade = list.querySelector('.forecast-card__fade');
-            if (fade) fade.classList.toggle('hidden', expanded);
-          }
-          return;
-        }
         const row = e.target.closest('.forecast-card__row');
         if (row && !this._modalOpen) this.openForecastDetail(parseInt(row.dataset.i, 10) || 0);
       });
@@ -900,8 +926,7 @@ const UI = {
       });
       const today = dtf.format(new Date());
       const [y, m, d] = today.split('-').map(Number);
-      const next = new Date(y, m - 1, d + 1);
-      const tomorrow = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+      const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
       if (dateKey === today) dLabel = 'Today';
       else if (dateKey === tomorrow) dLabel = 'Tomorrow';
       else dLabel = Utils.parseLocal(time, this._tz).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -1092,70 +1117,48 @@ const UI = {
     const startIdx = this._hourlyStartIdx(hourly);
     const count = 24;
     const times = hourly.time.slice(startIdx, startIdx + count);
-    if (!times.length) return;
     const mode = this._chartMode;
+    const modeLabel = this._chartModeLabel(mode);
+    const modePillsMarkup = this.CHART_MODES.map((m) =>
+      `<button type="button" class="hourly-chart__mode${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
+    ).join('');
+    const empty = () => {
+      container.innerHTML = `
+        <div class="hourly-chart__head">
+          <span class="hourly-chart__title">${modeLabel}</span>
+          <div class="hourly-chart__nav" role="group" aria-label="Change chart">
+            <button type="button" class="hourly-chart__arrow" data-dir="prev" aria-label="Previous chart">‹</button>
+            <button type="button" class="hourly-chart__arrow" data-dir="next" aria-label="Next chart">›</button>
+          </div>
+        </div>
+        <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
+        <div class="hourly-chart__empty">No data available for this chart.</div>`;
+    };
+    if (!times.length) { empty(); return; }
     const slice = (key) => hourly[key] ? hourly[key].slice(startIdx, startIdx + count) : null;
 
     const pops = slice('precipitation_probability');
 
     let cfg;
     if (mode === 'rain') {
-      if (!pops) return;
+      if (!pops) { empty(); return; }
       cfg = {
         min: 0, max: 100, suffix: '%',
-        values: pops, color: '#7EC8E3', cells: true,
-        legend: [{ label: 'chance of rain', swatch: '#7EC8E3' }],
-      };
-    } else if (mode === 'wind') {
-      const u = Utils.getWindUnit(this.windUnit);
-      const vals = slice('wind_speed_10m');
-      if (!vals) return;
-      const gusts = slice('wind_gusts_10m');
-      const all = (gusts ? vals.concat(gusts) : vals).filter((v) => Number.isFinite(v));
-      cfg = {
-        values: vals, color: '#FFB74D', suffix: '',
-        gusts: gusts, gustColor: '#E08A2E',
-        min: all.length ? Math.min(...all) : 0, max: all.length ? Math.max(...all) : 0,
-        legend: [
-          { label: `Wind (${u})`, swatch: '#FFB74D' },
-          ...(gusts ? [{ label: `Gusts (${u})`, swatch: '#E08A2E' }] : []),
-        ],
-      };
-    } else if (mode === 'humidity') {
-      const vals = slice('relative_humidity_2m');
-      if (!vals) return;
-      cfg = {
-        values: vals, color: '#1E88E5', suffix: '%',
-        legend: [{ label: 'Humidity (%)', swatch: '#1E88E5' }],
-      };
-    } else if (mode === 'cloud') {
-      const vals = slice('cloud_cover');
-      if (!vals) return;
-      cfg = {
-        min: 0, max: 100, suffix: '%',
-        values: vals, color: '#6D7D8B', cells: true,
-        legend: [{ label: 'Cloud cover (%)', swatch: '#6D7D8B' }],
-      };
-    } else if (mode === 'pressure') {
-      const raw = slice('pressure_msl');
-      const vals = raw ? (UI.pressUnit === 'inHg' ? raw.map((v) => v != null ? v * 0.02953 : null) : raw) : null;
-      if (!vals) return;
-      cfg = {
-        values: vals, suffix: ` ${UI.pressUnit}`, color: '#AB47BC',
-        legend: [{ label: `Pressure (${UI.pressUnit})`, swatch: '#AB47BC' }],
+        values: pops, color: '#38BDF8', cells: true,
+        legend: [{ label: 'chance of rain', swatch: '#38BDF8' }],
       };
     } else if (mode === 'solar') {
       const raw = slice('shortwave_radiation');
-      if (!raw) return;
+      if (!raw) { empty(); return; }
       const fullSun = 1000;
       const vals = raw.map((v) => v == null ? null : Math.max(0, Math.min(100, Math.round((v / fullSun) * 100))));
       cfg = {
-        min: 0, max: 100, values: vals, color: '#FFA726', suffix: '%',
-        legend: [{ label: 'Sun strength (%)', swatch: '#FFA726' }],
+        min: 0, max: 100, values: vals, color: '#FACC15', suffix: '%',
+        legend: [{ label: 'Sun strength (%)', swatch: '#FACC15' }],
       };
     } else {
       const vals = slice('temperature_2m');
-      if (!vals) return;
+      if (!vals) { empty(); return; }
       const suffix = units === 'imperial' ? '°F' : '°C';
       cfg = {
         values: vals, suffix: '°', tempGrad: true,
@@ -1170,7 +1173,7 @@ const UI = {
     const finite = (arr) => arr.filter((v) => Number.isFinite(v));
     const primary = finite(cfg.values || []);
     const secondary = cfg.second ? finite(cfg.second) : [];
-    if (!primary.length && !secondary.length) return;
+    if (!primary.length && !secondary.length) { empty(); return; }
     const minT = cfg.min != null ? cfg.min : Math.min(...primary, ...secondary);
     const maxT = cfg.max != null ? cfg.max : Math.max(...primary, ...secondary);
     const span = Math.max(1, maxT - minT);
@@ -1257,37 +1260,38 @@ const UI = {
         }).join('');
         defs = `<linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">${gradStops}</linearGradient>`;
         line = `<polygon points="${area}" fill="url(#tempGrad)" fill-opacity="0.22"/>
+                <polyline points="${points}" fill="none" stroke="url(#tempGrad)" stroke-width="11" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="${points}" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
                 <polyline points="${points}" fill="none" stroke="url(#tempGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>`;
         dots = cfg.values.map((t, i) => {
           if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4" fill="${Utils.getTempColor(t, units)}" stroke="rgba(255,255,255,0.85)" stroke-width="1.2"/>`;
+          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4.5" fill="${Utils.getTempColor(t, units)}" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/>`;
         }).join('');
       } else {
-        line = `<polygon points="${area}" fill="${cfg.color}" fill-opacity="0.15"/>
+        line = `<polygon points="${area}" fill="${cfg.color}" fill-opacity="0.18"/>
+                <polyline points="${points}" fill="none" stroke="${cfg.color}" stroke-width="10" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
                 <polyline points="${points}" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
                 <polyline points="${points}" fill="none" stroke="${cfg.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
         if (gustPoints) {
-          line += `<polyline points="${gustPoints}" fill="none" stroke="${cfg.gustColor}" stroke-width="3" stroke-dasharray="8 5" stroke-linecap="round" stroke-linejoin="round"/>`;
+          line += `<polyline points="${gustPoints}" fill="none" stroke="${cfg.gustColor}" stroke-width="7" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
+                   <polyline points="${gustPoints}" fill="none" stroke="${cfg.gustColor}" stroke-width="3" stroke-dasharray="8 5" stroke-linecap="round" stroke-linejoin="round"/>`;
         }
         dots = cfg.values.map((t, i) => {
           if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4" fill="${cfg.color}" stroke="rgba(255,255,255,0.85)" stroke-width="1.2"/>`;
+          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4.5" fill="${cfg.color}" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/>`;
         }).join('');
       }
       if (cfg.second && cfg.second.length) {
         const dpPoints = path(cfg.second);
-        line += `<polyline points="${dpPoints}" fill="none" stroke="#26C6DA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 4"/>`;
+        line += `<polyline points="${dpPoints}" fill="none" stroke="#26C6DA" stroke-width="6" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>
+                 <polyline points="${dpPoints}" fill="none" stroke="#26C6DA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 4"/>`;
         dots += cfg.second.map((t, i) => {
           if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="3" fill="#26C6DA" stroke="rgba(255,255,255,0.85)" stroke-width="1"/>`;
+          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="3.5" fill="#26C6DA" stroke="rgba(255,255,255,0.9)" stroke-width="1.2"/>`;
         }).join('');
       }
     }
 
-    const modeLabel = this._chartModeLabel(mode);
-    const modePills = this.CHART_MODES.map((m) =>
-      `<button type="button" class="hourly-chart__mode${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
-    ).join('');
     container.innerHTML = `
       <div class="hourly-chart__head">
         <span class="hourly-chart__title">${modeLabel}</span>
@@ -1296,7 +1300,7 @@ const UI = {
           <button type="button" class="hourly-chart__arrow" data-dir="next" aria-label="Next chart">›</button>
         </div>
       </div>
-      <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePills}</div>
+      <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
       <svg viewBox="0 0 ${W} ${H}" class="hourly-chart__svg" role="img"
            aria-label="24-hour ${modeLabel} chart">
         <defs>${defs}</defs>
@@ -1310,7 +1314,7 @@ const UI = {
         <div class="hourly-chart__legend">
           ${cfg.legend.map((l) => `<span class="hourly-chart__legend-item"><span class="hourly-chart__legend-swatch" style="background:${l.swatch}"></span>${l.label}</span>`).join('')}
         </div>` : ''}
-      <div class="hourly-chart__hint">Swipe the card or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to change chart</div>`;
+      <div class="hourly-chart__hint"><svg class="hourly-card__hinticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg><span>Swipe to change chart</span></div>`;
 
     const modes = container.querySelector('.hourly-chart__modes');
     const activeMode = container.querySelector('.hourly-chart__mode.is-active');
@@ -1331,19 +1335,11 @@ const UI = {
   _chartModeShort(mode) {
     return mode === 'temp' ? 'Temp & Dew'
       : mode === 'rain' ? 'Rain'
-      : mode === 'wind' ? 'Wind'
-      : mode === 'humidity' ? 'Humidity'
-      : mode === 'cloud' ? 'Cloud'
-      : mode === 'pressure' ? 'Pressure'
       : 'Solar';
   },
 
   _chartModeLabel(mode) {
     return mode === 'rain' ? 'Rain'
-      : mode === 'wind' ? 'Wind'
-      : mode === 'humidity' ? 'Humidity'
-      : mode === 'cloud' ? 'Cloud Cover'
-      : mode === 'pressure' ? 'Pressure'
       : mode === 'solar' ? 'Sun strength'
       : 'Temperature & dew point';
   },
@@ -1437,7 +1433,7 @@ const UI = {
     });
   },
 
-  renderWeather(weatherData, aqData, units, cityName, country, lat, lon, forecastDays) {
+  renderWeather(weatherData, aqData, units, cityName, country, lat, lon) {
     if (!weatherData) return;
     if (!window.__appRendered) {
       window.__appRendered = true;
@@ -1451,7 +1447,7 @@ const UI = {
     this.$('weatherContent').classList.remove('hidden');
     this.$('weatherContent').classList.add('weather-content--visible');
     this.renderCurrentWeather(weatherData, units);
-    this.renderForecast(weatherData.daily, units, forecastDays, weatherData.hourly);
+    this.renderForecast(weatherData.daily, units, weatherData.hourly);
     this.renderHourly(weatherData.hourly, units);
     this.renderHourlyChart(weatherData.hourly, units);
     this.renderDetailBoxes(weatherData, aqData, units);
@@ -1464,23 +1460,67 @@ const UI = {
       : null;
     const gust = cur && cur.wind_gusts_10m != null ? Math.round(cur.wind_gusts_10m) : null;
     UI._compassGustLabel = gust != null ? `${gust} ${windUnit}` : '';
-    const daily = weatherData.daily;
-    let dayMaxLabel = '';
-    if (daily && daily.wind_speed_10m_max) {
-      const parts = [];
-      if (daily.wind_speed_10m_max[0] != null) parts.push(`max ${Math.round(daily.wind_speed_10m_max[0])} ${windUnit}`);
-      if (daily.wind_gusts_10m_max && daily.wind_gusts_10m_max[0] != null) parts.push(`gusts ${Math.round(daily.wind_gusts_10m_max[0])} ${windUnit}`);
-      if (daily.wind_direction_10m_dominant && daily.wind_direction_10m_dominant[0] != null) parts.push(`mostly from ${Utils.getWindDirection(Math.round(daily.wind_direction_10m_dominant[0]))}`);
-      if (parts.length) dayMaxLabel = `Today ${parts.join(' · ')}`;
-    }
-    UI._compassDayMaxLabel = dayMaxLabel;
+    const todayWind = this._todayWindStats(weatherData.hourly, windUnit);
+    UI._compassTodayWind = todayWind;
     UI._compassCityName = cityName;
     UI._compassCountry = country;
     if (lat != null && lon != null) {
-      this.renderWindCompass(lat, lon, UI._compassWindLabel, UI._compassWindDir, UI._compassGustLabel, UI._compassDayMaxLabel);
+      this.renderWindCompass(lat, lon, UI._compassWindLabel, UI._compassWindDir, UI._compassGustLabel, todayWind);
     } else {
       this.hideCompass();
     }
+  },
+
+  _todayDateKey() {
+    try {
+      const dtf = new Intl.DateTimeFormat('en-CA', {
+        timeZone: this._tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      });
+      return dtf.format(new Date());
+    } catch {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    }
+  },
+
+  _dominantDir(dirs) {
+    let sx = 0, sy = 0;
+    for (const d of dirs) {
+      const r = (d * Math.PI) / 180;
+      sx += Math.cos(r);
+      sy += Math.sin(r);
+    }
+    return (Math.round(Math.atan2(sy, sx) * 180 / Math.PI) % 360 + 360) % 360;
+  },
+
+  _todayWindStats(hourly, windUnit) {
+    if (!hourly || !hourly.time || !hourly.wind_speed_10m) return null;
+    const prefix = this._todayDateKey() + 'T';
+    let maxWind = null;
+    let maxGust = null;
+    let minWind = null;
+    const dirs = [];
+    for (let k = 0; k < hourly.time.length; k++) {
+      if (!hourly.time[k].startsWith(prefix)) continue;
+      const w = hourly.wind_speed_10m[k];
+      if (w != null && Number.isFinite(w)) {
+        if (maxWind == null || w > maxWind.v) maxWind = { v: w, k };
+        if (minWind == null || w < minWind.v) minWind = { v: w, k };
+      }
+      const g = hourly.wind_gusts_10m ? hourly.wind_gusts_10m[k] : null;
+      if (g != null && Number.isFinite(g) && (maxGust == null || g > maxGust.v)) maxGust = { v: g, k };
+      const d = hourly.wind_direction_10m ? hourly.wind_direction_10m[k] : null;
+      if (d != null && Number.isFinite(d)) dirs.push(d);
+    }
+    if (!maxWind && !maxGust) return null;
+    const fmt = (t) => Utils.formatHourShort(hourly.time[t], this._tz);
+    return {
+      maxWind: maxWind ? `${Math.round(maxWind.v)} ${windUnit} at ${fmt(maxWind.k)}` : null,
+      maxGust: maxGust ? `${Math.round(maxGust.v)} ${windUnit} at ${fmt(maxGust.k)}` : null,
+      minWind: minWind ? `${Math.round(minWind.v)} ${windUnit} at ${fmt(minWind.k)}` : null,
+      prevailing: dirs.length ? Utils.getWindDirection(this._dominantDir(dirs)) : null,
+    };
   },
 
   setUnitLabel(units) {
@@ -1527,14 +1567,6 @@ const UI = {
     const el = document.createElement('span');
     el.textContent = String(str);
     return el.innerHTML;
-  },
-
-  _windArrowSVG(dir, className, size, stroke) {
-    if (dir == null) return '';
-    const safeClass = String(className).replace(/[^a-zA-Z0-9_-]/g, '');
-    const safeStroke = stroke && /^#[0-9a-fA-F]{3,8}$/.test(stroke) ? stroke : '';
-    const s = safeStroke ? ` stroke="${safeStroke}" fill="none"` : '';
-    return `<svg class="${safeClass}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform:rotate(${Math.round(dir)}deg)"><path d="M12 19V5"${s}/><path d="M5 12l7-7 7 7"${s}/></svg>`;
   },
 
   _metricIcon(name) {

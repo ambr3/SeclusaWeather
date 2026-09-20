@@ -8,11 +8,15 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
-  Permissions-Policy: camera=(), microphone=(), geolocation=(self), gyroscope=(), magnetometer=(), payment=(), usb=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self), gyroscope=(), magnetometer=(), accelerometer=(), payment=(), usb=(), midi=(), bluetooth=(), serial=(), interest-cohort=(), idle-detection=(), screen-wake-lock=(), picture-in-picture=(), fullscreen=(), clipboard-read=(), clipboard-write=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
 
 /index.html
+  Cache-Control: no-cache
+
+/offline.html
   Cache-Control: no-cache
 
 /sw.js
