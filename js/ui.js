@@ -22,6 +22,7 @@ const UI = {
   _hourlyModalBound: false,
   _modalKeyHandler: null,
   _chartSwipeBound: false,
+  _current: null,
   CHART_MODES: ['temp', 'rain', 'solar'],
 
   _getMeasureCtx() {
@@ -126,6 +127,32 @@ const UI = {
     else label = `Last refreshed ${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} at ${time}`;
     el.textContent = label;
     el.classList.remove('hidden');
+  },
+
+  // Values for the "Now" tile/modal slot, preferring the live current-weather
+  // observation so it stays consistent with the summary card.
+  _nowFromCurrent(cur, hourly, units) {
+    if (!cur) return null;
+    const dayKey = this._todayDateKey();
+    const pop = dayKey ? this.daytimeMaxPop(dayKey, hourly) : null;
+    return {
+      pop,
+      temp: cur.temperature_2m != null ? Utils.formatTemp(cur.temperature_2m, units) : null,
+      tempRaw: cur.temperature_2m != null ? cur.temperature_2m : null,
+      feels: cur.apparent_temperature != null ? Utils.formatTemp(cur.apparent_temperature, units) : null,
+      feelsRaw: cur.apparent_temperature != null ? cur.apparent_temperature : null,
+      humidity: cur.relative_humidity_2m != null ? `${Math.round(cur.relative_humidity_2m)}%` : null,
+      wind: cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null,
+      windDir: cur.wind_direction_10m != null ? Math.round(cur.wind_direction_10m) : null,
+      precip: cur.precipitation != null ? cur.precipitation : null,
+      snow: cur.snowfall != null ? cur.snowfall : null,
+      dew: cur.dew_point_2m != null ? Utils.formatTemp(cur.dew_point_2m, units) : null,
+      pressure: cur.pressure_msl != null ? Utils.formatPressure(cur.pressure_msl, UI.pressUnit) : null,
+      cloud: cur.cloud_cover != null ? `${Math.round(cur.cloud_cover)}%` : null,
+      visibility: cur.visibility != null ? Utils.formatVisibility(cur.visibility, UI.visUnit) : null,
+      code: cur.weather_code != null ? cur.weather_code : null,
+      isDay: cur.is_day != null ? cur.is_day : null,
+    };
   },
 
   renderCurrentWeather(data, units) {
@@ -694,23 +721,34 @@ const UI = {
     const parts = [];
     hourly.time.slice(startIdx, startIdx + count).forEach((time, i) => {
       const idx = startIdx + i;
-      const temp = hourly.temperature_2m && hourly.temperature_2m[idx] != null
+      const nowVals = i === 0 ? this._nowFromCurrent(this._current, hourly, units) : null;
+      let temp = hourly.temperature_2m && hourly.temperature_2m[idx] != null
         ? Utils.formatTemp(hourly.temperature_2m[idx], units)
         : '—';
       const timeLabel = i === 0 ? 'Now' : Utils.formatHourShort(time, this._tz);
-      const pop = hourly.precipitation_probability ? hourly.precipitation_probability[idx] : null;
-      const wind = hourly.wind_speed_10m && hourly.wind_speed_10m[idx] != null ? Math.round(hourly.wind_speed_10m[idx]) : null;
-      const windDir = hourly.wind_direction_10m && hourly.wind_direction_10m[idx] != null ? Math.round(hourly.wind_direction_10m[idx]) : null;
-      const precipNow = hourly.precipitation && hourly.precipitation[idx] != null ? hourly.precipitation[idx] : 0;
-      const snowNow = hourly.snowfall && hourly.snowfall[idx] != null ? hourly.snowfall[idx] : 0;
-      const iconCode = WeatherIcons.adjustForPrecip(hourly.weather_code[idx], pop, precipNow, snowNow);
-      const icon = WeatherIcons.get(iconCode, hourly.is_day && hourly.is_day[idx] != null ? hourly.is_day[idx] : 1);
-      const desc = Utils.getWeatherDescription(iconCode);
-      const windDirLabel = windDir != null ? Utils.getWindDirection(windDir) : '';
-      const humidity = hourly.relative_humidity_2m && hourly.relative_humidity_2m[idx] != null ? `${Math.round(hourly.relative_humidity_2m[idx])}%` : '';
-      const feelsLike = hourly.apparent_temperature && hourly.apparent_temperature[idx] != null
+      let pop = hourly.precipitation_probability ? hourly.precipitation_probability[idx] : null;
+      let wind = hourly.wind_speed_10m && hourly.wind_speed_10m[idx] != null ? Math.round(hourly.wind_speed_10m[idx]) : null;
+      let windDir = hourly.wind_direction_10m && hourly.wind_direction_10m[idx] != null ? Math.round(hourly.wind_direction_10m[idx]) : null;
+      let precipNow = hourly.precipitation && hourly.precipitation[idx] != null ? hourly.precipitation[idx] : 0;
+      let snowNow = hourly.snowfall && hourly.snowfall[idx] != null ? hourly.snowfall[idx] : 0;
+      let humidity = hourly.relative_humidity_2m && hourly.relative_humidity_2m[idx] != null ? `${Math.round(hourly.relative_humidity_2m[idx])}%` : '';
+      let feelsLike = hourly.apparent_temperature && hourly.apparent_temperature[idx] != null
         ? Utils.formatTemp(hourly.apparent_temperature[idx], units)
         : null;
+      if (nowVals) {
+        if (nowVals.pop != null) pop = nowVals.pop;
+        if (nowVals.temp != null) temp = nowVals.temp;
+        if (nowVals.feels != null) feelsLike = nowVals.feels;
+        if (nowVals.humidity != null) humidity = nowVals.humidity;
+        if (nowVals.wind != null) wind = nowVals.wind;
+        if (nowVals.windDir != null) windDir = nowVals.windDir;
+        if (nowVals.precip != null) precipNow = nowVals.precip;
+        if (nowVals.snow != null) snowNow = nowVals.snow;
+      }
+      const iconCode = WeatherIcons.adjustForPrecip(nowVals && nowVals.code != null ? nowVals.code : hourly.weather_code[idx], pop, precipNow, snowNow);
+      const icon = WeatherIcons.get(iconCode, nowVals && nowVals.isDay != null ? nowVals.isDay : (hourly.is_day && hourly.is_day[idx] != null ? hourly.is_day[idx] : 1));
+      const desc = Utils.getWeatherDescription(iconCode);
+      const windDirLabel = windDir != null ? Utils.getWindDirection(windDir) : '';
 
       const dateKey = time.slice(0, 10);
       if (i === 0 || dateKey !== prevKey) {
@@ -910,27 +948,28 @@ const UI = {
     if (time == null) { this.closeHourlyDetail(); return; }
 
     const units = this._modalUnits || 'metric';
-    const temp = h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—';
-    const tempRaw = h.temperature_2m && h.temperature_2m[idx];
+    const nowVals = this._modalIndex === 0 ? this._nowFromCurrent(this._current, h, units) : null;
+    const temp = nowVals && nowVals.temp != null ? nowVals.temp : (h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—');
+    const tempRaw = nowVals && nowVals.tempRaw != null ? nowVals.tempRaw : (h.temperature_2m && h.temperature_2m[idx]);
     const tempColor = tempRaw != null ? Utils.getTempColor(tempRaw, units) : null;
-    const feels = h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null;
-    const feelsRaw = h.apparent_temperature && h.apparent_temperature[idx];
+    const feels = nowVals && nowVals.feels != null ? nowVals.feels : (h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null);
+    const feelsRaw = nowVals && nowVals.feelsRaw != null ? nowVals.feelsRaw : (h.apparent_temperature && h.apparent_temperature[idx]);
     const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${feels}</span>` : feels) : null;
-    const dewPoint = h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null;
-    const pop = h.precipitation_probability ? h.precipitation_probability[idx] : null;
-    const precip = h.precipitation ? h.precipitation[idx] : 0;
-    const snow = h.snowfall ? h.snowfall[idx] : 0;
-    const wind = h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null;
-    const windDir = h.wind_direction_10m && h.wind_direction_10m[idx] != null ? Math.round(h.wind_direction_10m[idx]) : null;
-    const humidity = h.relative_humidity_2m && h.relative_humidity_2m[idx] != null ? `${Math.round(h.relative_humidity_2m[idx])}%` : null;
-    const pressure = h.pressure_msl && h.pressure_msl[idx] != null ? Utils.formatPressure(h.pressure_msl[idx], UI.pressUnit) : null;
-    const cloud = h.cloud_cover && h.cloud_cover[idx] != null ? `${Math.round(h.cloud_cover[idx])}%` : null;
-    const visibility = h.visibility && h.visibility[idx] != null ? Utils.formatVisibility(h.visibility[idx], UI.visUnit) : null;
+    const dewPoint = nowVals && nowVals.dew != null ? nowVals.dew : (h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null);
+    const pop = nowVals && nowVals.pop != null ? nowVals.pop : (h.precipitation_probability ? h.precipitation_probability[idx] : null);
+    const precip = nowVals && nowVals.precip != null ? nowVals.precip : (h.precipitation ? h.precipitation[idx] : 0);
+    const snow = nowVals && nowVals.snow != null ? nowVals.snow : (h.snowfall ? h.snowfall[idx] : 0);
+    const wind = nowVals && nowVals.wind != null ? nowVals.wind : (h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null);
+    const windDir = nowVals && nowVals.windDir != null ? nowVals.windDir : (h.wind_direction_10m && h.wind_direction_10m[idx] != null ? Math.round(h.wind_direction_10m[idx]) : null);
+    const humidity = nowVals && nowVals.humidity != null ? nowVals.humidity : (h.relative_humidity_2m && h.relative_humidity_2m[idx] != null ? `${Math.round(h.relative_humidity_2m[idx])}%` : null);
+    const pressure = nowVals && nowVals.pressure != null ? nowVals.pressure : (h.pressure_msl && h.pressure_msl[idx] != null ? Utils.formatPressure(h.pressure_msl[idx], UI.pressUnit) : null);
+    const cloud = nowVals && nowVals.cloud != null ? nowVals.cloud : (h.cloud_cover && h.cloud_cover[idx] != null ? `${Math.round(h.cloud_cover[idx])}%` : null);
+    const visibility = nowVals && nowVals.visibility != null ? nowVals.visibility : (h.visibility && h.visibility[idx] != null ? Utils.formatVisibility(h.visibility[idx], UI.visUnit) : null);
     const windUnit = Utils.getWindUnit(UI.windUnit);
     const windVal = wind != null ? `${wind} ${windUnit}${windDir != null ? ` ${Utils.getWindDirection(windDir)}` : ''}` : null;
 
-    const iconCode = WeatherIcons.adjustForPrecip(h.weather_code[idx], pop, precip, snow);
-    const icon = WeatherIcons.get(iconCode, h.is_day && h.is_day[idx] != null ? h.is_day[idx] : 1);
+    const iconCode = WeatherIcons.adjustForPrecip(nowVals && nowVals.code != null ? nowVals.code : (h.weather_code ? h.weather_code[idx] : null), pop, precip, snow);
+    const icon = WeatherIcons.get(iconCode, nowVals && nowVals.isDay != null ? nowVals.isDay : (h.is_day && h.is_day[idx] != null ? h.is_day[idx] : 1));
     const desc = Utils.getWeatherDescription(iconCode);
 
     const stat = (label, value, tint) => value != null
@@ -1462,6 +1501,7 @@ const UI = {
     this.hideLoading();
     this.hideError();
     this._tz = weatherData.timezone ? weatherData.timezone : null;
+    this._current = weatherData.current || null;
     weatherData._cityName = cityName;
     weatherData._country = country;
     this.$('weatherContent').classList.remove('hidden');
