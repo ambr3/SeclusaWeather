@@ -736,6 +736,15 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
+.last-updated {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin: 0.25rem auto 0.75rem;
+  text-align: center;
+}
+
 .weather-content--visible {
   opacity: 1;
   transform: translateY(0);
@@ -1167,6 +1176,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 .conditions-item__label {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -1174,6 +1184,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .conditions-item__icon {
@@ -1208,6 +1219,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .conditions-item__swap {

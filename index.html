@@ -98,6 +98,12 @@
       <button class="icon-btn icon-btn--text" id="dynamicTextToggle" aria-label="Toggle dynamic text color" aria-pressed="false">
         <span class="dynamic-label">Dyn</span>
       </button>
+      <button class="icon-btn" id="refreshBtn" aria-label="Refresh forecast">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
+          <polyline points="21 3 21 9 15 9"></polyline>
+        </svg>
+      </button>
       <div class="units-menu" id="unitsMenu">
         <button class="unit-toggle" id="unitMenuBtn" aria-label="Units" aria-expanded="false">
           <span id="unitMenuLabel">°C</span>
@@ -203,6 +209,8 @@
     </div>
 
     <div id="weatherContent" class="weather-content">
+
+      <p class="last-updated hidden" id="lastUpdated" aria-live="polite"></p>
 
       <section class="current-weather" id="currentWeather" aria-label="Current weather"></section>
 

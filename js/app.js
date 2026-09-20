@@ -157,6 +157,13 @@ const App = {
     this.$('offlineNotice').addEventListener('click', () => {
       if (navigator.onLine) this.reloadCurrent();
     });
+    this.$('refreshBtn').addEventListener('click', () => {
+      if (navigator.onLine) {
+        this.reloadCurrent();
+      } else {
+        UI.showError('You are offline — check your connection to refresh.');
+      }
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -197,12 +204,8 @@ const App = {
       }
       UI.renderWeather(cached.weather, cached.aq || null, this.units, name, country, lat, lon);
       this._last = { weather: cached.weather, aq: cached.aq || null, units: this.units, name, country, lat, lon };
+      UI.setUpdatedAt(cached.savedAt);
       UI.markOffline(!navigator.onLine);
-      if (navigator.onLine) {
-        const ageMs = cached.savedAt ? Date.now() - cached.savedAt : 0;
-        const ageHrs = Math.floor(ageMs / (60 * 60 * 1000));
-        UI.markStale(true, `Cached forecast from ${ageHrs === 0 ? 'under an hour' : `${ageHrs}h`} ago — tap to refresh.`);
-      }
     }
 
     if ('serviceWorker' in navigator) {
@@ -257,6 +260,7 @@ const App = {
       if (!weather) return;
       UI.renderWeather(weather, aq, units, city, country, lat, lon);
       this._last = { weather, aq, units, name: city, country, lat, lon };
+      UI.setUpdatedAt(Date.now());
       Utils.saveWeatherCache({ savedAt: Date.now(), units, windUnit, name: city, country, lat, lon, weather, aq });
     } catch (e) {
       /* silent background refresh; keep existing data on failure */
@@ -400,6 +404,7 @@ const App = {
         UI.setWindUnitLabel(cacheWind);
         UI.renderWeather(cached.weather, cached.aq || null, cacheUnits, cached.name, cached.country, cached.lat, cached.lon);
         this._last = { weather: cached.weather, aq: cached.aq || null, units: cacheUnits, name: cached.name, country: cached.country || '', lat: cached.lat, lon: cached.lon };
+        UI.setUpdatedAt(cached.savedAt);
       } else {
         UI.showError(err && err.message ? err.message : 'Something went wrong.');
       }
@@ -471,6 +476,7 @@ const App = {
           UI.setWindUnitLabel(cacheWind);
           UI.renderWeather(weather, aq, cacheUnits, name, country, cached.lat, cached.lon);
           this._last = { weather, aq, units: cacheUnits, name, country, lat: cached.lat, lon: cached.lon };
+          UI.setUpdatedAt(cached.savedAt);
           if (Number.isFinite(cached.lat) && Number.isFinite(cached.lon)) {
             this.lastCity = name;
             this.lastCountry = country;
@@ -500,6 +506,7 @@ const App = {
       this.lastCountry = country;
       this.lastLat = lat;
       this.lastLon = lon;
+      UI.setUpdatedAt(Date.now());
       Utils.safeSet('lastCity', cityKey);
       Utils.safeSet('lastCountry', country);
       Utils.safeSet('lastLat', lat);

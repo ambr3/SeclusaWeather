@@ -108,6 +108,26 @@ const UI = {
     }
   },
 
+  setUpdatedAt(ts) {
+    const el = this.$('lastUpdated');
+    if (!el) return;
+    if (!Number.isFinite(ts)) {
+      el.classList.add('hidden');
+      return;
+    }
+    const diffMs = Date.now() - ts;
+    const mins = Math.floor(diffMs / (60 * 1000));
+    const d = new Date(ts);
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let label;
+    if (mins < 1) label = 'Updated just now';
+    else if (mins < 60) label = `Updated ${mins} min ago`;
+    else if (mins < 60 * 24) label = `Last refreshed at ${time}`;
+    else label = `Last refreshed ${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} at ${time}`;
+    el.textContent = label;
+    el.classList.remove('hidden');
+  },
+
   renderCurrentWeather(data, units) {
     if (!data || !data.current) return;
     const c = data.current;
