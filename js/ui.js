@@ -161,8 +161,10 @@ const UI = {
     if (!data || !data.current) return;
     const c = data.current;
     const d = data.daily || {};
+    const nowStartIdx = this._hourlyStartIdx(data.hourly);
+    const nowPop = this._meaningfulNowPop(c, data.hourly, nowStartIdx);
     const dayPop = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
-    const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, dayPop, c.precipitation ?? 0, c.snowfall ?? 0);
+    const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, nowPop, c.precipitation ?? 0, c.snowfall ?? 0);
     const icon = WeatherIcons.get(iconCode, c.is_day);
     const temp = Utils.formatTemp(c.temperature_2m, units);
     const feels = Utils.formatTemp(c.apparent_temperature, units);
