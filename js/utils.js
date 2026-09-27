@@ -19,15 +19,27 @@ const Utils = {
 
   formatTime(isoString, tz) {
     const d = isoString instanceof Date ? isoString : new Date(isoString);
+    let out;
     if (tz) {
       try {
         const input = isoString instanceof Date ? d : this.parseLocal(isoString, tz);
-        return this._dtf(tz, { hour: '2-digit', minute: '2-digit', hour12: true }).format(input);
+        out = this._dtf(tz, { hour: 'numeric', minute: '2-digit', hour12: true }).format(input);
       } catch {
-        /* invalid tz — fall through to device-local formatting */
+        out = null;
       }
     }
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (!out) out = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    // Keep "8:00 AM" on one line (narrow no-break space before AM/PM).
+    return String(out).replace(/\s+(AM|PM)/i, '\u202F$1');
+  },
+
+  // Compact clock for tight UI (celestial row / arc labels) — stays one line at ~110% zoom.
+  formatTimeCompact(isoString, tz) {
+    return this.formatTime(isoString, tz)
+      .replace(/\u202F/g, ' ')
+      .replace(/\s+(AM|PM)/i, '\u00A0$1')
+      .replace(/\bAM\b/i, 'am')
+      .replace(/\bPM\b/i, 'pm');
   },
 
   formatHourShort(isoString, tz) {

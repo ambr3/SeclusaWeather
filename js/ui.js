@@ -201,10 +201,10 @@ const UI = {
     const feels = Utils.formatTemp(c.apparent_temperature, units);
     const desc = Utils.getWeatherDescription(iconCode);
 
-    const sunrise = d.sunrise && d.sunrise[0] ? Utils.formatTime(d.sunrise[0], this._tz) : '—';
-    const sunset = d.sunset && d.sunset[0] ? Utils.formatTime(d.sunset[0], this._tz) : '—';
-    const moonrise = d.moonrise && d.moonrise[0] ? Utils.formatTime(d.moonrise[0], this._tz) : '—';
-    const moonset = d.moonset && d.moonset[0] ? Utils.formatTime(d.moonset[0], this._tz) : '—';
+    const sunrise = d.sunrise && d.sunrise[0] ? Utils.formatTimeCompact(d.sunrise[0], this._tz) : '—';
+    const sunset = d.sunset && d.sunset[0] ? Utils.formatTimeCompact(d.sunset[0], this._tz) : '—';
+    const moonrise = d.moonrise && d.moonrise[0] ? Utils.formatTimeCompact(d.moonrise[0], this._tz) : '—';
+    const moonset = d.moonset && d.moonset[0] ? Utils.formatTimeCompact(d.moonset[0], this._tz) : '—';
     const phase = d.moon_phase && d.moon_phase.length ? d.moon_phase[0] : null;
     const phaseRow = phase != null
       ? `${Utils.getMoonPhaseName(phase)} · ${Utils.getMoonIllumination(phase)}% illuminated`
@@ -1073,6 +1073,7 @@ const UI = {
   openHourlyDetail(i) {
     if (!this._hourly || !this._hourly.time || !this._hourlyCount) return;
     this._modalMode = 'hourly';
+    this._modalPaneH = null;
     this._modalCount = this._hourlyCount;
     this._modalIndex = Math.max(0, Math.min(this._hourlyCount - 1, i));
     this._modalOpen = true;
@@ -1087,6 +1088,7 @@ const UI = {
     if (!total) return;
     this._forecastCount = total;
     this._modalMode = 'forecast';
+    this._modalPaneH = null;
     this._modalCount = total;
     this._modalIndex = Math.max(0, Math.min(total - 1, i));
     this._modalOpen = true;
@@ -1132,10 +1134,15 @@ const UI = {
       modal.innerHTML = '';
     }
     this._modalOpen = false;
+    this._modalPaneH = null;
     document.body.classList.remove('has-modal');
     if (this._modalKeyHandler) {
       document.removeEventListener('keydown', this._modalKeyHandler);
       this._modalKeyHandler = null;
+    }
+    if (this._modalResizeHandler) {
+      window.removeEventListener('resize', this._modalResizeHandler);
+      this._modalResizeHandler = null;
     }
   },
 
@@ -1159,13 +1166,61 @@ const UI = {
       `;
       modal.classList.remove('hidden');
       document.body.classList.add('has-modal');
+      if (!this._modalResizeHandler) {
+        this._modalResizeHandler = Utils.debounce(() => {
+          if (!this._modalOpen) return;
+          this._modalPaneH = null;
+          this._syncModalPaneHeight();
+        }, 150);
+        window.addEventListener('resize', this._modalResizeHandler);
+      }
     } else {
       const prev = modal.querySelector('.hourly-modal__nav--prev');
       const next = modal.querySelector('.hourly-modal__nav--next');
       if (prev) prev.setAttribute('aria-label', prevLabel);
       if (next) next.setAttribute('aria-label', nextLabel);
     }
+    modal.classList.toggle('hourly-modal--forecast', this._modalMode === 'forecast');
+    modal.classList.toggle('hourly-modal--hourly', this._modalMode !== 'forecast');
     return modal.querySelector('.hourly-modal__track');
+  },
+
+  // Lock all swipe panes to one height (tallest of prev/cur/next), capped to the
+  // viewport — keeps size stable while swiping without a full-screen empty card.
+  _syncModalPaneHeight() {
+    const modal = this.$('hourlyModal');
+    const viewport = modal && modal.querySelector('.hourly-modal__viewport');
+    const track = modal && modal.querySelector('.hourly-modal__track');
+    if (!viewport || !track) return;
+    const slides = track.querySelectorAll('.hourly-modal__slide');
+    const panes = track.querySelectorAll('.hourly-modal__pane');
+    panes.forEach((p) => { p.style.height = 'auto'; });
+    slides.forEach((s) => { s.style.height = 'auto'; });
+    track.style.height = 'auto';
+    viewport.style.height = 'auto';
+
+    let contentH = 0;
+    panes.forEach((p) => {
+      if (p.classList.contains('hourly-modal__pane--empty')) return;
+      contentH = Math.max(contentH, p.scrollHeight);
+    });
+    if (!contentH) return;
+
+    const isPhone = window.matchMedia('(max-width: 520px)').matches;
+    // Cap a bit lower on phones to leave room for ~110% browser zoom.
+    const cap = Math.floor(window.innerHeight * (isPhone ? 0.7 : 0.86));
+    const natural = Math.max(contentH, this._modalPaneH || 0);
+    const h = Math.min(natural, cap);
+    this._modalPaneH = h;
+    const scroll = natural > cap;
+
+    panes.forEach((p) => {
+      p.style.height = `${h}px`;
+      p.style.overflowY = scroll ? 'auto' : 'hidden';
+    });
+    slides.forEach((s) => { s.style.height = `${h}px`; });
+    track.style.height = `${h}px`;
+    viewport.style.height = `${h}px`;
   },
 
   _statChip(label, value, tint, i) {
@@ -1385,6 +1440,7 @@ const UI = {
     // Force layout so translate uses real widths
     void track.offsetWidth;
     track.style.transform = 'translate3d(-33.3333%, 0, 0)';
+    this._syncModalPaneHeight();
     const focus = this.$('hourlyModal') && this.$('hourlyModal').querySelector('.hourly-modal__close');
     if (focus) focus.focus();
   },

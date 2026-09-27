@@ -141,16 +141,48 @@
     font-size: 1rem;
   }
 
-  .current-weather__arc {
-    width: min(100%, 320px);
+  .current-weather__celestial {
+    gap: 0.75rem;
+    margin: 0.2rem 0 0.3rem;
   }
 
-  .current-weather__arc-label {
+  .celestial {
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .celestial__title {
     font-size: 0.85rem;
+    letter-spacing: 0.06em;
+  }
+
+  .celestial__times {
+    gap: 0.2rem;
+  }
+
+  .celestial__label {
+    font-size: 0.68rem;
+    width: 1.75rem;
   }
 
   .celestial__value {
-    font-size: 1.1rem;
+    font-size: 0.92rem;
+  }
+
+  .celestial__row {
+    gap: 0.35rem;
+  }
+
+  .celestial-divider {
+    height: 2.4rem;
+  }
+
+  .current-weather__arc {
+    width: min(100%, 300px);
+  }
+
+  .current-weather__arc-label {
+    font-size: 0.78rem;
   }
 
   .detail-grid {
