@@ -125,4 +125,6 @@ bash scripts/smoke.sh
 
 [GPL-3.0](LICENSE) — free to use, modify, and share, with the same freedom preserved for derivatives.
 
+Bundled UI fonts (**DM Sans**, **Sora**) are [SIL Open Font License 1.1](assets/fonts/OFL-DM-SANS.txt) ([Sora OFL](assets/fonts/OFL-SORA.txt)); served locally — no font CDN.
+
 ---

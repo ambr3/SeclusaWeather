@@ -64,6 +64,11 @@ for host in api.open-meteo.com air-quality-api.open-meteo.com geocoding-api.open
 done
 grep -q "frame-ancestors 'none'" .htaccess _headers vercel.json || bad "frame-ancestors missing from header samples"
 grep -q 'X-Frame-Options' .htaccess _headers vercel.json || bad "X-Frame-Options missing from header samples"
+grep -q "font-src 'self'" index.html offline.html .htaccess _headers vercel.json || bad "font-src 'self' missing from CSP samples"
+! grep -q "'unsafe-inline'" index.html offline.html .htaccess _headers vercel.json || bad "CSP still allows unsafe-inline"
+grep -q "dynCSS" js/utils.js || bad "dynCSS helper missing"
+inline_hits=$(grep -nE ' style=|\.style\.[a-zA-Z]' js/ui.js js/app.js index.html offline.html 2>/dev/null || true)
+[ -z "$inline_hits" ] || bad "inline style sinks remain:\n$inline_hits"
 pass "CSP / header host allowlist"
 
 # --- privacy / XSS guardrails present ---
@@ -126,19 +131,44 @@ grep -q "built-in \*\*London\*\* default" README.md || bad "README London defaul
 grep -q '_modalPaneHLocked' js/ui.js || bad "modal height settle lock missing"
 grep -q 'settle = false' js/ui.js || bad "modal settle remasure missing"
 grep -q '{ html = false }' js/ui.js || bad "_statRow html opt-in missing"
-# Moon phase under Moon column; celestial top-aligned so Rise/Set stay level
-grep -q 'celestial__phase' js/ui.js || bad "celestial__phase missing"
-grep -q 'celestial__phase-illum' js/ui.js || bad "celestial__phase-illum missing"
+# Moon phase + sun/moon facts live in the earth-arc pill
+grep -q 'earth-arc__row--phase' js/ui.js || bad "earth-arc phase row missing"
+grep -q 'earth-arc__facts' js/ui.js || bad "earth-arc facts missing"
+grep -q 'earth-arc__list' js/ui.js || bad "earth-arc list style missing"
+grep -q 'hourly-modal__list' js/ui.js || bad "enlarge list missing"
+grep -q '_statRow' js/ui.js || bad "enlarge list rows missing"
+! grep -q 'hourly-modal__stats' js/ui.js || bad "enlarge chips should stay removed"
 grep -q "align-items: flex-start" css/style.css || bad "celestial columns not top-aligned"
 grep -q '_applyWeatherTheme' js/ui.js || bad "live weather theme helper missing"
 grep -q 'sun.below ? 0 : 1' js/ui.js || bad "sunset→night theme flip missing"
-! grep -q 'current-weather__phase' js/ui.js || bad "current-weather__phase should stay removed"
+! grep -q 'celestial__phase' js/ui.js || bad "phase should not be under Moon column"
 # Fixed earth day = top half (no spin with sun)
 grep -q 'Day = top half, night = bottom' js/ui.js || bad "fixed earth day/night comment missing"
 grep -q 'M24,50 A26,26 0 0 1 76,50 Z' js/ui.js || bad "fixed day-top earth path missing"
 # Head labels escaped
 grep -q 'hourly-modal__head">${this._esc' js/ui.js || bad "modal head not escaped"
 pass "default London / modal / earth guards"
+
+# --- local fonts (no CDN) ---
+grep -q "@font-face" css/style.css || bad "@font-face missing"
+grep -qF -- "--font-body: 'DM Sans'" css/style.css || bad "DM Sans body missing"
+grep -qF -- "--font-heading: 'Sora'" css/style.css || bad "Sora heading missing"
+grep -qE 'fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net/npm/@fontsource' css/style.css index.html && bad "external font CDN reference" || true
+for f in \
+  assets/fonts/dm-sans-latin-400-normal.woff2 \
+  assets/fonts/dm-sans-latin-600-normal.woff2 \
+  assets/fonts/dm-sans-latin-700-normal.woff2 \
+  assets/fonts/sora-latin-600-normal.woff2 \
+  assets/fonts/sora-latin-700-normal.woff2 \
+  assets/fonts/sora-latin-800-normal.woff2
+do
+  [ -f "$f" ] || bad "missing font $f"
+  grep -q "'./$f'" sw.js || bad "sw.js missing $f"
+  grep -q "$f" css/style.css || bad "style.css missing url for $f"
+done
+grep -q 'weather-content--stagger' js/ui.js || bad "stagger class missing in ui.js"
+grep -q 'weather-content--stagger' css/style.css || bad "stagger styles missing"
+pass "local fonts + stagger"
 
 if [ "$fail" -ne 0 ]; then
   echo "SMOKE FAILED"

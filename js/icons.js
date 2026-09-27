@@ -30,15 +30,17 @@ const WeatherIcons = {
   },
 
   _group(code) {
-    if (code === 0) return 'clear';
-    if (code === 1) return 'clearsome';
-    if (code === 2) return 'clouds';
-    if (code === 3) return 'overcast';
-    if (code >= 45 && code <= 48) return 'fog';
-    if (code >= 51 && code <= 57) return 'drizzle';
-    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
-    if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return 'snow';
-    if (code >= 95) return 'thunder';
+    const n = Number(code);
+    if (!Number.isFinite(n)) return 'clear';
+    if (n === 0) return 'clear';
+    if (n === 1) return 'clearsome';
+    if (n === 2) return 'clouds';
+    if (n === 3) return 'overcast';
+    if (n >= 45 && n <= 48) return 'fog';
+    if (n >= 51 && n <= 57) return 'drizzle';
+    if ((n >= 61 && n <= 67) || (n >= 80 && n <= 82)) return 'rain';
+    if ((n >= 71 && n <= 77) || (n >= 85 && n <= 86)) return 'snow';
+    if (n >= 95) return 'thunder';
     return 'clear';
   },
 

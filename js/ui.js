@@ -139,6 +139,11 @@ const UI = {
     this.$('loading').classList.remove('hidden');
     this.$('errorMessage').classList.add('hidden');
     this.$('weatherContent').classList.add('hidden');
+    const arc = this.$('earthArc');
+    if (arc) {
+      arc.classList.add('hidden');
+      arc.innerHTML = '';
+    }
   },
 
   hideLoading() {
@@ -148,6 +153,11 @@ const UI = {
   showError(msg) {
     this.hideLoading();
     this.$('weatherContent').classList.add('hidden');
+    const arc = this.$('earthArc');
+    if (arc) {
+      arc.classList.add('hidden');
+      arc.innerHTML = '';
+    }
     const el = this.$('errorMessage');
     el.textContent = msg;
     el.classList.remove('hidden');
@@ -307,9 +317,55 @@ const UI = {
             <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${moonrise}</span></div>
             <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${moonset}</span></div>
           </div>
-          ${phaseName ? `<div class="celestial__phase">${this._esc(phaseName)}</div>` : ''}
-          ${phaseIllum ? `<div class="celestial__phase-illum">${this._esc(phaseIllum)}</div>` : ''}
         </div>
+      </div>
+    `;
+
+    const daylight = d.daylight_duration && d.daylight_duration[0] != null
+      ? Utils.formatDuration(d.daylight_duration[0]) : null;
+    const sunshine = d.sunshine_duration && d.sunshine_duration[0] != null
+      ? Utils.formatDuration(d.sunshine_duration[0]) : null;
+    const uvRaw = d.uv_index_max && d.uv_index_max[0] != null ? d.uv_index_max[0] : null;
+    const uvInfo = uvRaw != null ? Utils.getUVLevel(uvRaw) : null;
+    const uvLabel = uvRaw != null ? `${Math.round(uvRaw)}${uvInfo ? ` · ${uvInfo.label}` : ''}` : null;
+    const solarSum = d.shortwave_radiation_sum && d.shortwave_radiation_sum[0] != null
+      ? `${Math.round(d.shortwave_radiation_sum[0] * 10) / 10} MJ/m²` : null;
+    const sunStatus = sunOrb ? (sunOrb.below ? 'Below horizon' : 'Above horizon') : null;
+    const moonStatus = moonOrb ? (moonOrb.below ? 'Below horizon' : 'Above horizon') : null;
+    const phaseLine = [phaseName, phaseIllum].filter(Boolean).join(' · ');
+    const fact = (label, value) => (
+      value
+        ? `<div class="hourly-modal__row earth-arc__row"><span class="hourly-modal__row-label">${this._esc(label)}</span><span class="hourly-modal__row-value">${this._esc(value)}</span></div>`
+        : ''
+    );
+    const sunSpan = (sunrise !== '—' && sunset !== '—')
+      ? `${sunrise} → ${sunset}`
+      : (sunrise !== '—' ? sunrise : (sunset !== '—' ? sunset : null));
+    const moonSpan = (moonrise !== '—' && moonset !== '—')
+      ? `${moonrise} → ${moonset}`
+      : (moonrise !== '—' ? moonrise : (moonset !== '—' ? moonset : null));
+    const sunFacts = [
+      fact('Path', sunSpan),
+      fact('Now', sunStatus),
+      fact('Daylight', daylight),
+      fact('Sunshine', sunshine),
+      fact('UV', uvLabel),
+      fact('Solar', solarSum),
+    ].join('');
+    const moonFacts = [
+      phaseLine
+        ? `<div class="hourly-modal__row earth-arc__row earth-arc__row--phase"><span class="hourly-modal__row-label">Phase</span><span class="hourly-modal__row-value">${this._esc(phaseLine)}</span></div>`
+        : '',
+      fact('Path', moonSpan),
+      fact('Now', moonStatus),
+    ].join('');
+
+    const arcHost = this.$('earthArc');
+    if (arcHost) {
+      arcHost.classList.remove('hidden');
+      arcHost.innerHTML = `
+      <div class="earth-arc__head">
+        <span class="earth-arc__title">Sun &amp; Moon</span>
       </div>
       <div class="current-weather__arc" aria-hidden="true">
         <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
@@ -349,13 +405,26 @@ const UI = {
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="9" text-anchor="middle">Noon</text>
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="98" text-anchor="middle">Night</text>
         </svg>
-        <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}" style="${sunOrb ? `left:${sunOrb.left}%;top:${sunOrb.top}%` : 'display:none'}">${WeatherIcons._sun()}</div>
-        <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}" style="${moonOrb ? `left:${moonOrb.left}%;top:${moonOrb.top}%` : 'display:none'}">${WeatherIcons._moon()}</div>
+        <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}${sunOrb ? '' : ' is-hidden'}">${WeatherIcons._sun()}</div>
+        <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}${moonOrb ? '' : ' is-hidden'}">${WeatherIcons._moon()}</div>
       </div>
-    `;
+      ${(sunFacts || moonFacts) ? `
+      <div class="earth-arc__facts">
+        ${sunFacts ? `<div class="earth-arc__group"><div class="earth-arc__group-title">Sun</div><div class="hourly-modal__list earth-arc__list">${sunFacts}</div></div>` : ''}
+        ${moonFacts ? `<div class="earth-arc__group"><div class="earth-arc__group-title">Moon</div><div class="hourly-modal__list earth-arc__list">${moonFacts}</div></div>` : ''}
+      </div>` : ''}`;
+    }
 
     this._applyWeatherTheme(iconCode, isDay);
+    this._setOrbPositions(sunOrb, moonOrb);
     this.startLiveClock();
+  },
+
+  _setOrbPositions(sun, moon) {
+    const parts = [];
+    if (sun) parts.push(`--sun-x:${sun.left}%`, `--sun-y:${sun.top}%`);
+    if (moon) parts.push(`--moon-x:${moon.left}%`, `--moon-y:${moon.top}%`);
+    if (parts.length) Utils.dynCSS.set('orbs', `:root{${parts.join(';')}}`);
   },
 
   startLiveClock() {
@@ -372,21 +441,18 @@ const UI = {
     const sunEl = document.querySelector('.current-weather__arc-sun');
     const moonEl = document.querySelector('.current-weather__arc-moon');
     if (sunEl && sun) {
-      sunEl.style.left = `${sun.left}%`;
-      sunEl.style.top = `${sun.top}%`;
+      sunEl.classList.remove('is-hidden');
       sunEl.classList.toggle('is-below', !!sun.below);
-      sunEl.style.display = '';
     } else if (sunEl) {
-      sunEl.style.display = 'none';
+      sunEl.classList.add('is-hidden');
     }
     if (moonEl && moon) {
-      moonEl.style.left = `${moon.left}%`;
-      moonEl.style.top = `${moon.top}%`;
+      moonEl.classList.remove('is-hidden');
       moonEl.classList.toggle('is-below', !!moon.below);
-      moonEl.style.display = '';
     } else if (moonEl) {
-      moonEl.style.display = 'none';
+      moonEl.classList.add('is-hidden');
     }
+    this._setOrbPositions(sun, moon);
     // Flip day/night theme when the sun crosses the horizon.
     if (sun && weatherCode != null) {
       const isDay = sun.below ? 0 : 1;
@@ -436,7 +502,7 @@ const UI = {
     const conditions = [
       { label: 'Precip', icon: this._metricIcon('precip'), value: precipNow, sub: precipSub.length ? precipSub.join(' · ') : 'Dry today' },
       { label: 'Humidity', icon: this._metricIcon('humidity'), value: humidity != null ? `${humidity}%` : '—', sub: `Dew point ${dewPoint}` },
-      { label: 'UV Index', icon: this._metricIcon('uv'), value: uv != null ? `<span class="uv-badge" style="background:${uvInfo.color}">${Math.round(uv)}</span>` : '—', sub: uv != null ? `${uvInfo.label}${uvClear != null ? ` · clear sky ${Math.round(uvClear)}` : ''}` : 'Not available' },
+      { label: 'UV Index', icon: this._metricIcon('uv'), value: uv != null ? `<span class="uv-badge tone-${uvInfo.tone}">${Math.round(uv)}</span>` : '—', sub: uv != null ? `${uvInfo.label}${uvClear != null ? ` · clear sky ${Math.round(uvClear)}` : ''}` : 'Not available' },
       { label: 'Visibility', icon: this._metricIcon('visibility'), value: Utils.formatVisibility(c.visibility, UI.visUnit), sub: 'Current visibility' },
       { label: 'Pressure', icon: this._metricIcon('pressure'), value: pressureMsl != null ? Utils.formatPressure(pressureMsl, UI.pressUnit) : pressure != null ? Utils.formatPressure(pressure, UI.pressUnit) : '—', sub: pressureMsl != null && pressure != null ? `MSL ${Utils.formatPressure(pressureMsl, UI.pressUnit)} · Surface ${Utils.formatPressure(pressure, UI.pressUnit)}` : 'Atmospheric pressure · tap to toggle', id: 'pressureBox' },
     ];
@@ -444,12 +510,12 @@ const UI = {
     const cape = c.cape != null ? Math.round(c.cape) : null;
     if (cape != null) {
       let capeInfo;
-      if (cape < 300) capeInfo = { label: 'None', color: '#5fb84d', desc: 'Stable air, no thunderstorms' };
-      else if (cape < 1000) capeInfo = { label: 'Low', color: '#5fb84d', desc: 'Weak thunderstorm potential' };
-      else if (cape < 2000) capeInfo = { label: 'Moderate', color: '#ff9800', desc: 'Thunderstorms possible' };
-      else if (cape < 3000) capeInfo = { label: 'High', color: '#f44336', desc: 'Strong storms likely' };
-      else capeInfo = { label: 'Extreme', color: '#880e4f', desc: 'Severe storms expected' };
-      conditions.push({ label: 'Thunderstorm risk', icon: this._metricIcon('bolt'), value: `<span style="color:${capeInfo.color}">${capeInfo.label}</span>`, sub: capeInfo.desc });
+      if (cape < 300) capeInfo = { label: 'None', tone: 'good', desc: 'Stable air, no thunderstorms' };
+      else if (cape < 1000) capeInfo = { label: 'Low', tone: 'good', desc: 'Weak thunderstorm potential' };
+      else if (cape < 2000) capeInfo = { label: 'Moderate', tone: 'moderate', desc: 'Thunderstorms possible' };
+      else if (cape < 3000) capeInfo = { label: 'High', tone: 'high', desc: 'Strong storms likely' };
+      else capeInfo = { label: 'Extreme', tone: 'extreme', desc: 'Severe storms expected' };
+      conditions.push({ label: 'Thunderstorm risk', icon: this._metricIcon('bolt'), value: `<span class="tone-${capeInfo.tone}">${capeInfo.label}</span>`, sub: capeInfo.desc });
     }
 
     const aqC = aq && aq.current;
@@ -473,7 +539,7 @@ const UI = {
       aqiBlock = `
         <div class="conditions-item conditions-item--wide">
           <span class="conditions-item__label"><span class="conditions-item__icon">${this._metricIcon('aqi')}</span>Air Quality · ${isEU ? 'European' : 'US'} AQI</span>
-          <span class="conditions-item__value">${aqLevel ? `<span class="uv-badge" style="background:${aqLevel.color}">${aqi}</span> <span style="color:${aqLevel.color}">${aqLevel.label}</span>` : '<span class="uv-badge">—</span>'}</span>
+          <span class="conditions-item__value">${aqLevel ? `<span class="uv-badge tone-${aqLevel.tone}">${aqi}</span> <span class="tone-${aqLevel.tone}">${aqLevel.label}</span>` : '<span class="uv-badge">—</span>'}</span>
           <div class="conditions-item__chips">${chips}</div>
         </div>
       `;
@@ -494,21 +560,20 @@ const UI = {
       pollenBlock = `
       <div class="conditions-item conditions-item--wide">
         <span class="conditions-item__label"><span class="conditions-item__icon">${this._metricIcon('pollen')}</span>Pollen</span>
-        <span class="conditions-item__value"><span style="color:#5fb84d">Low</span></span>
+        <span class="conditions-item__value"><span class="tone-good">Low</span></span>
         <span class="conditions-item__sub">Little to no pollen</span>
       </div>
     `;
     } else if (pollenPresent.length && pollenPresent.some(([, v]) => v > 0)) {
       const top = [...pollenPresent].sort((a, b) => b[1] - a[1]);
       const pLevel = Utils.getPollenLevel(top[0][1]);
-      const pollenColors = { Low: '#5fb84d', Moderate: '#ff9800', High: '#f44336', 'Very High': '#880e4f' };
-      const barColor = pollenColors[pLevel.label] || '#5fb84d';
       const bars = top.slice(0, 3).map(([label, v]) => {
         const pct = Math.max(2, Math.min(100, Math.round(v)));
+        const w = Math.round(pct / 5) * 5;
         return `
           <div class="pollen-row">
             <span class="pollen-row__label">${label}</span>
-            <span class="pollen-row__bar"><span class="pollen-row__fill" style="width:${pct}%;background:${barColor}"></span></span>
+            <span class="pollen-row__bar"><span class="pollen-row__fill pollen-w-${w} tone-${pLevel.tone}"></span></span>
             <span class="pollen-row__value">${Math.round(v)}</span>
           </div>
         `;
@@ -516,7 +581,7 @@ const UI = {
       pollenBlock = `
         <div class="conditions-item conditions-item--wide">
           <span class="conditions-item__label"><span class="conditions-item__icon">${this._metricIcon('pollen')}</span>Pollen</span>
-          <span class="conditions-item__value"><span style="color:${pLevel.color}">${pLevel.label}</span></span>
+          <span class="conditions-item__value"><span class="tone-${pLevel.tone}">${pLevel.label}</span></span>
           <span class="conditions-item__sub">${top[0][0]} is highest · grains/m³</span>
           <div class="pollen-bars">${bars}</div>
           <div class="pollen-legend">Low &lt;5 · Moderate 5–30 · High 30–99 · Very High 100+</div>
@@ -533,7 +598,7 @@ const UI = {
     `).join('');
 
     boxes.push(`
-      <div class="detail-box detail-box--conditions" style="animation-delay:0s">
+      <div class="detail-box detail-box--conditions">
         <div class="detail-box__title">Conditions</div>
         <div class="conditions-grid">
           ${conditionsGrid}
@@ -556,7 +621,6 @@ const UI = {
 
     const pressBox = document.getElementById('pressureBox');
     if (pressBox) {
-      pressBox.style.cursor = 'pointer';
       pressBox.addEventListener('click', () => {
         UI.pressUnit = UI.pressUnit === 'inHg' ? 'hPa' : 'inHg';
         Utils.safeSet('pressUnit', UI.pressUnit);
@@ -812,12 +876,12 @@ const UI = {
     const pagerEl = this.$('forecastCards').querySelector('.forecast-card__pager');
     const pagesEl = this.$('forecastCards').querySelector('.forecast-card__pages');
     if (pagesEl) {
-      const pageNodes = pagesEl.querySelectorAll('.forecast-card__page');
-      pageNodes.forEach((p) => { p.style.minHeight = ''; });
       requestAnimationFrame(() => {
+        const pageNodes = pagesEl.querySelectorAll('.forecast-card__page');
         let maxH = 0;
+        Utils.dynCSS.del('forecast-h');
         pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
-        if (maxH > 0) pageNodes.forEach((p) => { p.style.minHeight = `${maxH}px`; });
+        if (maxH > 0) Utils.dynCSS.set('forecast-h', `:root{--forecast-page-h:${maxH}px}`);
       });
     }
     if (pages.length > 1 && pagerEl && pagesEl) {
@@ -990,10 +1054,10 @@ const UI = {
     const setTrackX = (px, withTransition) => {
       const track = trackEl();
       if (!track) return;
-      track.style.transition = withTransition
+      const tr = withTransition
         ? 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
         : 'none';
-      track.style.transform = `translate3d(calc(-33.3333% + ${px}px), 0, 0)`;
+      Utils.dynCSS.set('modal-drag', `#hourlyModal{--modal-drag-x:${px}px;--modal-drag-tr:${tr}}`);
     };
     const settleTrack = (dir) => {
       const track = trackEl();
@@ -1004,8 +1068,7 @@ const UI = {
         return;
       }
       const target = dir > 0 ? -track.parentElement.clientWidth : track.parentElement.clientWidth;
-      track.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
-      track.style.transform = `translate3d(calc(-33.3333% + ${target}px), 0, 0)`;
+      setTrackX(target, true);
       let finished = false;
       const finish = (e) => {
         if (finished) return;
@@ -1146,8 +1209,7 @@ const UI = {
       return;
     }
     const target = dir > 0 ? -viewport.clientWidth : viewport.clientWidth;
-    track.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
-    track.style.transform = `translate3d(calc(-33.3333% + ${target}px), 0, 0)`;
+    Utils.dynCSS.set('modal-drag', `#hourlyModal{--modal-drag-x:${target}px;--modal-drag-tr:transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)}`);
     let finished = false;
     const finish = (e) => {
       if (finished) return;
@@ -1248,23 +1310,12 @@ const UI = {
     const viewport = modal && modal.querySelector('.hourly-modal__viewport');
     const track = modal && modal.querySelector('.hourly-modal__track');
     if (!modal || !viewport || !track) return;
-    const slides = [...track.querySelectorAll('.hourly-modal__slide')];
     const panes = [...track.querySelectorAll('.hourly-modal__pane')];
     const center = panes[1] || panes.find((p) => !p.classList.contains('hourly-modal__pane--empty'));
     if (!center) return;
 
-    const clear = (el) => {
-      el.style.height = '';
-      el.style.minHeight = '';
-      el.style.maxHeight = '';
-      el.style.overflow = 'hidden';
-      el.style.overflowY = 'hidden';
-    };
-    modal.classList.remove('hourly-modal--dense');
-    panes.forEach(clear);
-    slides.forEach(clear);
-    clear(track);
-    clear(viewport);
+    modal.classList.remove('hourly-modal--sized', 'hourly-modal--dense');
+    Utils.dynCSS.del('modal-h');
     void center.offsetHeight;
 
     const vv = window.visualViewport;
@@ -1288,19 +1339,8 @@ const UI = {
     if (settle) this._modalPaneHLocked = true;
     h = this._modalPaneH;
 
-    panes.forEach((p) => {
-      p.style.height = `${h}px`;
-      p.style.overflow = 'hidden';
-      p.style.overflowY = 'hidden';
-    });
-    slides.forEach((s) => {
-      s.style.height = `${h}px`;
-      s.style.overflow = 'hidden';
-    });
-    track.style.height = `${h}px`;
-    track.style.overflow = 'hidden';
-    viewport.style.height = `${h}px`;
-    viewport.style.overflow = 'hidden';
+    Utils.dynCSS.set('modal-h', `#hourlyModal{--modal-pane-h:${h}px}`);
+    modal.classList.add('hourly-modal--sized');
   },
 
   _statRow(label, value, { html = false } = {}) {
@@ -1344,11 +1384,11 @@ const UI = {
     const nowVals = modalIndex === 0 ? this._nowFromCurrent(this._current, h, units) : null;
     const temp = nowVals && nowVals.temp != null ? nowVals.temp : (h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—');
     const tempRaw = nowVals && nowVals.tempRaw != null ? nowVals.tempRaw : (h.temperature_2m && h.temperature_2m[idx]);
-    const tempColor = tempRaw != null ? Utils.getTempColor(tempRaw, units) : null;
+    const tempTone = tempRaw != null ? Utils.getTempTone(tempRaw, units) : null;
     const dewPoint = nowVals && nowVals.dew != null ? nowVals.dew : (h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null);
     const feels = nowVals && nowVals.feels != null ? nowVals.feels : (h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null);
     const feelsRaw = nowVals && nowVals.feelsRaw != null ? nowVals.feelsRaw : (h.apparent_temperature && h.apparent_temperature[idx]);
-    const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${this._esc(feels)}</span>` : feels) : null;
+    const feelsVal = feels != null ? (feelsRaw != null ? `<span class="temp-tone-${Utils.getTempTone(feelsRaw, units)}">${this._esc(feels)}</span>` : feels) : null;
     const pop = nowVals && modalIndex === 0 ? nowVals.pop : this._meaningfulHourPop(h, idx);
     const precip = nowVals && nowVals.precip != null ? nowVals.precip : (h.precipitation ? h.precipitation[idx] : 0);
     const wind = nowVals && nowVals.wind != null ? nowVals.wind : (h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null);
@@ -1390,7 +1430,7 @@ const UI = {
     return `
       <div class="hourly-modal__pane">
         <div class="hourly-modal__head">${this._esc(dLabel)} · ${this._esc(tLabel)}</div>
-        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${this._esc(temp)}</div>
+        <div class="hourly-modal__temp${tempTone ? ` temp-tone-${tempTone}` : ''}">${this._esc(temp)}</div>
         <div class="hourly-modal__list">
           ${row('Feels like', feelsVal, { html: feelsHtml })}
           ${row('Chance', pop != null ? `${Math.round(pop)}%` : null)}
@@ -1424,7 +1464,7 @@ const UI = {
     const sunrise = d.sunrise && d.sunrise[modalIndex] ? Utils.formatTime(d.sunrise[modalIndex], this._tz) : null;
     const sunset = d.sunset && d.sunset[modalIndex] ? Utils.formatTime(d.sunset[modalIndex], this._tz) : null;
     const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[modalIndex];
-    const tempColor = tempMaxRaw != null ? Utils.getTempColor(tempMaxRaw, units) : null;
+    const tempTone = tempMaxRaw != null ? Utils.getTempTone(tempMaxRaw, units) : null;
     const iconCode = WeatherIcons.dailyIcon(
       WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[modalIndex],
       pop, rainSum ?? 0, snowSum ?? 0, units
@@ -1433,7 +1473,7 @@ const UI = {
     const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex];
     const feelsVal = feelsHigh != null && feelsLow != null
       ? (feelsHighRaw != null
-          ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${this._esc(feelsHigh)} / ${this._esc(feelsLow)}</span>`
+          ? `<span class="temp-tone-${Utils.getTempTone(feelsHighRaw, units)}">${this._esc(feelsHigh)} / ${this._esc(feelsLow)}</span>`
           : `${feelsHigh} / ${feelsLow}`)
       : null;
     const parsed = Utils.parseLocal(date + 'T00:00:00', this._tz);
@@ -1451,7 +1491,7 @@ const UI = {
     return `
       <div class="hourly-modal__pane">
         <div class="hourly-modal__head">${this._esc(weekdayShort)} · ${this._esc(dateHeading)}</div>
-        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${this._esc(high)}<span class="hourly-modal__temp-low"> / ${this._esc(low)}</span></div>
+        <div class="hourly-modal__temp${tempTone ? ` temp-tone-${tempTone}` : ''}">${this._esc(high)}<span class="hourly-modal__temp-low"> / ${this._esc(low)}</span></div>
         <div class="hourly-modal__summary">${summary ? this._esc(summary) : ''}</div>
         <div class="hourly-modal__list">
           ${row('Feels like', feelsVal, { html: feelsHtml })}
@@ -1476,8 +1516,7 @@ const UI = {
     const prev = i > 0 ? paneFn.call(this, i - 1) : '<div class="hourly-modal__pane hourly-modal__pane--empty" aria-hidden="true"></div>';
     const cur = paneFn.call(this, i) || '<div class="hourly-modal__pane"><div class="hourly-modal__desc">No data</div></div>';
     const next = i < this._modalCount - 1 ? paneFn.call(this, i + 1) : '<div class="hourly-modal__pane hourly-modal__pane--empty" aria-hidden="true"></div>';
-    track.style.transition = 'none';
-    track.style.transform = 'translate3d(-33.3333%, 0, 0)';
+    Utils.dynCSS.set('modal-drag', '#hourlyModal{--modal-drag-x:0px;--modal-drag-tr:none}');
     track.innerHTML = `
       <div class="hourly-modal__slide">${prev}</div>
       <div class="hourly-modal__slide">${cur}</div>
@@ -1485,7 +1524,7 @@ const UI = {
     `;
     // Force layout so translate uses real widths
     void track.offsetWidth;
-    track.style.transform = 'translate3d(-33.3333%, 0, 0)';
+    Utils.dynCSS.set('modal-drag', '#hourlyModal{--modal-drag-x:0px;--modal-drag-tr:none}');
     this._updateModalHint();
     const sync = (settle = false) => { if (this._modalOpen) this._syncModalPaneHeight({ settle }); };
     sync(false);
@@ -1543,10 +1582,6 @@ const UI = {
       container.innerHTML = `
         <div class="hourly-chart__head">
           <span class="hourly-chart__title">${modeLabel}</span>
-          <div class="hourly-chart__nav" role="group" aria-label="Change chart">
-            <button type="button" class="hourly-chart__arrow" data-dir="prev" aria-label="Previous chart">‹</button>
-            <button type="button" class="hourly-chart__arrow" data-dir="next" aria-label="Next chart">›</button>
-          </div>
         </div>
         <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
         <div class="hourly-chart__empty">No data available for this chart.</div>`;
@@ -1562,7 +1597,7 @@ const UI = {
       cfg = {
         min: 0, max: 100, suffix: '%',
         values: pops, color: '#38BDF8', cells: true,
-        legend: [{ label: 'chance of rain', swatch: '#38BDF8' }],
+        legend: [{ label: 'chance of rain', swatch: 'rain' }],
       };
     } else if (mode === 'solar') {
       const raw = slice('shortwave_radiation');
@@ -1571,7 +1606,7 @@ const UI = {
       const vals = raw.map((v) => v == null ? null : Math.max(0, Math.min(100, Math.round((v / fullSun) * 100))));
       cfg = {
         min: 0, max: 100, values: vals, color: '#FACC15', suffix: '%',
-        legend: [{ label: 'Sun strength (%)', swatch: '#FACC15' }],
+        legend: [{ label: 'Sun strength (%)', swatch: 'solar' }],
       };
     } else {
       const vals = slice('temperature_2m');
@@ -1581,8 +1616,8 @@ const UI = {
         values: vals, suffix: '°', tempGrad: true,
         second: slice('dew_point_2m') || [],
         legend: [
-          { label: `Temperature (${suffix})`, swatch: '#FF7043' },
-          { label: `Dew point (${suffix})`, swatch: '#26C6DA' },
+          { label: `Temperature (${suffix})`, swatch: 'temp' },
+          { label: `Dew point (${suffix})`, swatch: 'dew' },
         ],
       };
     }
@@ -1639,72 +1674,136 @@ const UI = {
     const minGap = 76;
     const labelStep = [6, 8, 12, 24].find((s) => (iw * s) / times.length >= minGap) || 24;
     for (let i = 0; i < times.length; i += labelStep) {
-      xlabels += `<text x="${pos(i).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="18" font-weight="600" fill="currentColor" fill-opacity="0.9">${Utils.formatHourShort(times[i], this._tz)}</text>`;
+      xlabels += `<text x="${pos(i).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="18" font-weight="600" fill="currentColor" fill-opacity="0.9">${this._esc(Utils.formatHourShort(times[i], this._tz))}</text>`;
     }
     if (labelStep < 24) {
       const parts = times[0].slice(0, 10).split('-').map(Number);
       const next = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1)).toISOString().slice(0, 10) + 'T00:00:00';
       const dayEnd = Utils.parseLocal(next, this._tz);
-      xlabels += `<text x="${pos(times.length).toFixed(1)}" y="${H - 12}" text-anchor="end" font-size="18" font-weight="600" fill="currentColor" fill-opacity="0.9">${Utils.formatHourShort(dayEnd, this._tz)}</text>`;
+      xlabels += `<text x="${pos(times.length).toFixed(1)}" y="${H - 12}" text-anchor="end" font-size="18" font-weight="600" fill="currentColor" fill-opacity="0.9">${this._esc(Utils.formatHourShort(dayEnd, this._tz))}</text>`;
     }
 
     let line = '', dots = '', cells = '', defs = '';
     if (cfg.cells) {
       const baseY = padT + ih;
       const scale = (t) => (t - minT) / span;
+      defs = `<linearGradient id="chartBarGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${cfg.color}" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="${cfg.color}" stop-opacity="0.35"/>
+        </linearGradient>
+        <filter id="chartBarGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>`;
       cfg.values.forEach((t, i) => {
         if (!Number.isFinite(t)) return;
         const h = Math.max(2, scale(t) * ih);
-        const op = (0.45 + 0.55 * Math.min(1, scale(t))).toFixed(2);
         const x0 = (cellsPos.pos(i) - cellsPos.bw / 2).toFixed(1);
         const y0 = (baseY - h).toFixed(1);
-        cells += `<rect x="${x0}" y="${y0}" width="${cellsPos.bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${cellsPos.rx}" fill="${cfg.color}" fill-opacity="${op}" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>`;
+        cells += `<rect x="${x0}" y="${y0}" width="${cellsPos.bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${cellsPos.rx}" fill="url(#chartBarGrad)" filter="url(#chartBarGlow)" stroke="rgba(255,255,255,0.55)" stroke-width="1.1"/>`;
       });
       cells += `<rect x="${padL}" y="${(baseY - 1).toFixed(1)}" width="${iw.toFixed(1)}" height="1" fill="currentColor" fill-opacity="0.15"/>`;
     } else if (cfg.values) {
-      // Sparse series may contain null/NaN entries; drop them so polylines and
-      // area fills never receive invalid coordinates.
-      const path = (arr) => arr
-        .map((t, i) => (Number.isFinite(t) ? `${x(i).toFixed(1)},${y(t).toFixed(1)}` : null))
-        .filter(Boolean).join(' ');
-      const points = path(cfg.values);
-      const area = points ? `${padL},${(padT + ih).toFixed(1)} ${points} ${x(times.length - 1).toFixed(1)},${(padT + ih).toFixed(1)}` : '';
-      const gustPoints = cfg.gusts ? path(cfg.gusts) : '';
+      // Sparse series may contain null/NaN entries; drop them so paths never get invalid coords.
+      const seriesPts = (arr) => arr
+        .map((t, i) => (Number.isFinite(t) ? [x(i), y(t)] : null))
+        .filter(Boolean);
+      const smoothD = (pts) => {
+        if (!pts.length) return '';
+        if (pts.length === 1) return `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+        let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i - 1] || pts[i];
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          const p3 = pts[i + 2] || p2;
+          const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+          const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+          const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+          const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+          d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+        }
+        return d;
+      };
+      const mainPts = seriesPts(cfg.values);
+      const mainD = smoothD(mainPts);
+      const baseY = (padT + ih).toFixed(1);
+      const areaD = mainPts.length
+        ? `${mainD} L ${mainPts[mainPts.length - 1][0].toFixed(1)} ${baseY} L ${mainPts[0][0].toFixed(1)} ${baseY} Z`
+        : '';
+      const stroke = cfg.tempGrad ? 'url(#tempGrad)' : cfg.color;
+      const fillId = cfg.tempGrad ? 'tempAreaGrad' : 'chartAreaGrad';
       if (cfg.tempGrad) {
         const gradStops = [1, 0.75, 0.5, 0.25, 0].map((f) => {
           const t = minT + span * f;
           return `<stop offset="${Math.round(f * 100)}%" stop-color="${Utils.getTempColor(t, units)}"/>`;
         }).join('');
-        defs = `<linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">${gradStops}</linearGradient>`;
-        line = `<polygon points="${area}" fill="url(#tempGrad)" fill-opacity="0.22"/>
-                <polyline points="${points}" fill="none" stroke="url(#tempGrad)" stroke-width="11" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="${points}" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="${points}" fill="none" stroke="url(#tempGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-        dots = cfg.values.map((t, i) => {
-          if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4.5" fill="${Utils.getTempColor(t, units)}" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/>`;
-        }).join('');
+        defs = `<linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">${gradStops}</linearGradient>
+          <linearGradient id="tempAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${Utils.getTempColor(maxT, units)}" stop-opacity="0.38"/>
+            <stop offset="55%" stop-color="${Utils.getTempColor(minT + span * 0.45, units)}" stop-opacity="0.14"/>
+            <stop offset="100%" stop-color="${Utils.getTempColor(minT, units)}" stop-opacity="0"/>
+          </linearGradient>`;
       } else {
-        line = `<polygon points="${area}" fill="${cfg.color}" fill-opacity="0.18"/>
-                <polyline points="${points}" fill="none" stroke="${cfg.color}" stroke-width="10" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="${points}" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="${points}" fill="none" stroke="${cfg.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
-        if (gustPoints) {
-          line += `<polyline points="${gustPoints}" fill="none" stroke="${cfg.gustColor}" stroke-width="7" stroke-opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
-                   <polyline points="${gustPoints}" fill="none" stroke="${cfg.gustColor}" stroke-width="3" stroke-dasharray="8 5" stroke-linecap="round" stroke-linejoin="round"/>`;
-        }
-        dots = cfg.values.map((t, i) => {
-          if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="4.5" fill="${cfg.color}" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"/>`;
-        }).join('');
+        defs = `<linearGradient id="chartAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${cfg.color}" stop-opacity="0.42"/>
+            <stop offset="70%" stop-color="${cfg.color}" stop-opacity="0.12"/>
+            <stop offset="100%" stop-color="${cfg.color}" stop-opacity="0"/>
+          </linearGradient>`;
       }
+      defs += `
+        <filter id="chartLineGlow" x="-20%" y="-40%" width="140%" height="180%">
+          <feGaussianBlur stdDeviation="3.2" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="chartDotGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="1.6" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>`;
+      if (mainD) {
+        line = `
+          ${areaD ? `<path d="${areaD}" fill="url(#${fillId})"/>` : ''}
+          <path d="${mainD}" fill="none" stroke="${stroke}" stroke-width="12" stroke-opacity="0.18" stroke-linecap="round" stroke-linejoin="round" filter="url(#chartLineGlow)"/>
+          <path d="${mainD}" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="${mainD}" fill="none" stroke="${stroke}" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }
+      if (cfg.gusts) {
+        const gustD = smoothD(seriesPts(cfg.gusts));
+        if (gustD) {
+          line += `
+            <path d="${gustD}" fill="none" stroke="${cfg.gustColor}" stroke-width="7" stroke-opacity="0.22" stroke-linecap="round" stroke-linejoin="round" filter="url(#chartLineGlow)"/>
+            <path d="${gustD}" fill="none" stroke="${cfg.gustColor}" stroke-width="2.8" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+      }
+      dots = cfg.values.map((t, i) => {
+        if (!Number.isFinite(t)) return '';
+        const fill = cfg.tempGrad ? Utils.getTempColor(t, units) : cfg.color;
+        const cx = x(i).toFixed(1);
+        const cy = y(t).toFixed(1);
+        return `<circle cx="${cx}" cy="${cy}" r="6.2" fill="${fill}" fill-opacity="0.22" filter="url(#chartDotGlow)"/>
+                <circle cx="${cx}" cy="${cy}" r="4.2" fill="${fill}" stroke="rgba(255,255,255,0.95)" stroke-width="1.6"/>
+                <circle cx="${cx}" cy="${cy}" r="1.5" fill="rgba(255,255,255,0.95)"/>`;
+      }).join('');
       if (cfg.second && cfg.second.length) {
-        const dpPoints = path(cfg.second);
-        line += `<polyline points="${dpPoints}" fill="none" stroke="#26C6DA" stroke-width="6" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>
-                 <polyline points="${dpPoints}" fill="none" stroke="#26C6DA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 4"/>`;
+        const dpPts = seriesPts(cfg.second);
+        const dpD = smoothD(dpPts);
+        if (dpD) {
+          line += `
+            <path d="${dpD}" fill="none" stroke="#26C6DA" stroke-width="7" stroke-opacity="0.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#chartLineGlow)"/>
+            <path d="${dpD}" fill="none" stroke="#26C6DA" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 4"/>`;
+        }
         dots += cfg.second.map((t, i) => {
           if (!Number.isFinite(t)) return '';
-          return `<circle cx="${x(i).toFixed(1)}" cy="${y(t).toFixed(1)}" r="3.5" fill="#26C6DA" stroke="rgba(255,255,255,0.9)" stroke-width="1.2"/>`;
+          const cx = x(i).toFixed(1);
+          const cy = y(t).toFixed(1);
+          return `<circle cx="${cx}" cy="${cy}" r="3.4" fill="#26C6DA" stroke="rgba(255,255,255,0.92)" stroke-width="1.2"/>
+                  <circle cx="${cx}" cy="${cy}" r="1.1" fill="rgba(255,255,255,0.95)"/>`;
         }).join('');
       }
     }
@@ -1712,10 +1811,6 @@ const UI = {
     container.innerHTML = `
       <div class="hourly-chart__head">
         <span class="hourly-chart__title">${modeLabel}</span>
-        <div class="hourly-chart__nav" role="group" aria-label="Change chart">
-          <button type="button" class="hourly-chart__arrow" data-dir="prev" aria-label="Previous chart">‹</button>
-          <button type="button" class="hourly-chart__arrow" data-dir="next" aria-label="Next chart">›</button>
-        </div>
       </div>
       <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
       <svg viewBox="0 0 ${W} ${H}" class="hourly-chart__svg" role="img"
@@ -1729,7 +1824,7 @@ const UI = {
       </svg>
       ${cfg.legend && cfg.legend.length ? `
         <div class="hourly-chart__legend">
-          ${cfg.legend.map((l) => `<span class="hourly-chart__legend-item"><span class="hourly-chart__legend-swatch" style="background:${l.swatch}"></span>${l.label}</span>`).join('')}
+          ${cfg.legend.map((l) => `<span class="hourly-chart__legend-item"><span class="hourly-chart__legend-swatch hourly-chart__legend-swatch--${l.swatch}"></span>${l.label}</span>`).join('')}
         </div>` : ''}
       <div class="hourly-chart__hint"><svg class="hourly-card__hinticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg><span>Swipe to change chart</span></div>`;
 
@@ -1785,12 +1880,7 @@ const UI = {
     container.addEventListener('click', (e) => {
       if (this._chartDragged) { this._chartDragged = false; return; }
       const modeBtn = e.target.closest('.hourly-chart__mode[data-mode]');
-      if (modeBtn) {
-        this._setMode(modeBtn.getAttribute('data-mode'));
-        return;
-      }
-      const arrow = e.target.closest('.hourly-chart__arrow');
-      if (arrow) this._cycleChart(arrow.getAttribute('data-dir') === 'next' ? 1 : -1);
+      if (modeBtn) this._setMode(modeBtn.getAttribute('data-mode'));
     });
 
     let startX = null, startY = null, dx = 0, dy = 0, peakX = 0, peakY = 0, down = false, axis = null;
@@ -1864,6 +1954,10 @@ const UI = {
     weatherData._country = country;
     this.$('weatherContent').classList.remove('hidden');
     this.$('weatherContent').classList.add('weather-content--visible');
+    if (!this._weatherStaggered) {
+      this._weatherStaggered = true;
+      this.$('weatherContent').classList.add('weather-content--stagger');
+    }
     this.renderCurrentWeather(weatherData, units);
     this.renderForecast(weatherData.daily, units, weatherData.hourly);
     this.renderHourly(weatherData.hourly, units);

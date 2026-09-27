@@ -319,7 +319,7 @@ const App = {
   _updatePullIndicator(dist, triggerAt) {
     const el = this.$('ptrIndicator');
     if (!el) return;
-    el.style.transform = `translateY(${Math.max(0, dist - 44)}px)`;
+    Utils.dynCSS.set('ptr', `:root{--ptr-y:${Math.max(0, dist - 44)}px}`);
     const label = el.querySelector('.ptr-indicator__label');
     if (label) label.textContent = dist >= triggerAt ? 'Release to refresh' : 'Pull to refresh';
   },
@@ -327,7 +327,7 @@ const App = {
   _resetPullIndicator() {
     const el = this.$('ptrIndicator');
     if (!el) return;
-    el.style.transform = '';
+    Utils.dynCSS.del('ptr');
     const label = el.querySelector('.ptr-indicator__label');
     if (label) label.textContent = 'Pull to refresh';
   },
@@ -586,6 +586,9 @@ const App = {
 
   async loadWeather(lat, lon, name, country, cityKey, opts) {
     const seq = ++this._weatherSeq;
+    name = String(name || '').slice(0, 80);
+    country = String(country || '').slice(0, 8);
+    cityKey = String(cityKey || name || '').slice(0, 80);
     const soft = !!(opts && opts.soft);
     const content = this.$('weatherContent');
     const alreadyShowing = content && !content.classList.contains('hidden');

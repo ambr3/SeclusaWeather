@@ -167,27 +167,27 @@ const Utils = {
 
   getAQILevel(aqi, scale) {
     if (scale === 'us') {
-      if (aqi <= 50) return { label: 'Good', color: '#4caf50' };
-      if (aqi <= 100) return { label: 'Moderate', color: '#ff9800' };
-      if (aqi <= 150) return { label: 'Unhealthy for sensitive', color: '#f44336' };
-      if (aqi <= 200) return { label: 'Unhealthy', color: '#9c27b0' };
-      if (aqi <= 300) return { label: 'Very Unhealthy', color: '#880e4f' };
-      return { label: 'Hazardous', color: '#4a148c' };
+      if (aqi <= 50) return { label: 'Good', tone: 'good', color: '#4caf50' };
+      if (aqi <= 100) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
+      if (aqi <= 150) return { label: 'Unhealthy for sensitive', tone: 'high', color: '#f44336' };
+      if (aqi <= 200) return { label: 'Unhealthy', tone: 'very-high', color: '#9c27b0' };
+      if (aqi <= 300) return { label: 'Very Unhealthy', tone: 'extreme', color: '#880e4f' };
+      return { label: 'Hazardous', tone: 'hazard', color: '#4a148c' };
     }
-    if (aqi <= 20) return { label: 'Good', color: '#4caf50' };
-    if (aqi <= 40) return { label: 'Fair', color: '#8bc34a' };
-    if (aqi <= 60) return { label: 'Moderate', color: '#ff9800' };
-    if (aqi <= 80) return { label: 'Poor', color: '#f44336' };
-    if (aqi <= 100) return { label: 'Very Poor', color: '#9c27b0' };
-    return { label: 'Extremely Poor', color: '#880e4f' };
+    if (aqi <= 20) return { label: 'Good', tone: 'good', color: '#4caf50' };
+    if (aqi <= 40) return { label: 'Fair', tone: 'fair', color: '#8bc34a' };
+    if (aqi <= 60) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
+    if (aqi <= 80) return { label: 'Poor', tone: 'high', color: '#f44336' };
+    if (aqi <= 100) return { label: 'Very Poor', tone: 'very-high', color: '#9c27b0' };
+    return { label: 'Extremely Poor', tone: 'extreme', color: '#880e4f' };
   },
 
   getUVLevel(uvi) {
-    if (uvi <= 2) return { label: 'Low', color: '#4caf50' };
-    if (uvi <= 5) return { label: 'Moderate', color: '#ff9800' };
-    if (uvi <= 7) return { label: 'High', color: '#f44336' };
-    if (uvi <= 10) return { label: 'Very High', color: '#9c27b0' };
-    return { label: 'Extreme', color: '#880e4f' };
+    if (uvi <= 2) return { label: 'Low', tone: 'good', color: '#4caf50' };
+    if (uvi <= 5) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
+    if (uvi <= 7) return { label: 'High', tone: 'high', color: '#f44336' };
+    if (uvi <= 10) return { label: 'Very High', tone: 'very-high', color: '#9c27b0' };
+    return { label: 'Extreme', tone: 'extreme', color: '#880e4f' };
   },
 
   getTempColor(value, units) {
@@ -201,6 +201,55 @@ const Utils = {
     if (c <= 27) return '#e76f2e';
     if (c <= 33) return '#d0342c';
     return '#a4161a';
+  },
+
+  // Discrete tone class for HTML (keeps CSP free of style= color attrs). Hex stays for SVG.
+  getTempTone(value, units) {
+    const c = units === 'imperial' ? ((value - 32) * 5) / 9 : value;
+    if (c <= -15) return 't0';
+    if (c <= -5) return 't1';
+    if (c <= 3) return 't2';
+    if (c <= 10) return 't3';
+    if (c <= 16) return 't4';
+    if (c <= 21) return 't5';
+    if (c <= 27) return 't6';
+    if (c <= 33) return 't7';
+    return 't8';
+  },
+
+  // CSP-safe dynamic CSS via constructable stylesheet (not element.style / style=).
+  dynCSS: {
+    _sheet: null,
+    _map: new Map(),
+    _ensure() {
+      if (this._sheet) return this._sheet;
+      try {
+        this._sheet = new CSSStyleSheet();
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, this._sheet];
+        return this._sheet;
+      } catch {
+        this._sheet = null;
+        return null;
+      }
+    },
+    set(key, rule) {
+      this._map.set(key, rule);
+      this._flush();
+    },
+    del(key) {
+      if (!this._map.delete(key)) return;
+      this._flush();
+    },
+    _flush() {
+      const sheet = this._ensure();
+      if (!sheet) return;
+      try {
+        while (sheet.cssRules.length) sheet.deleteRule(0);
+        for (const rule of this._map.values()) {
+          try { sheet.insertRule(rule, sheet.cssRules.length); } catch { /* skip bad rule */ }
+        }
+      } catch { /* best-effort */ }
+    },
   },
 
   getMoonPhaseName(phase) {
@@ -222,10 +271,10 @@ const Utils = {
 
   getPollenLevel(value) {
     if (value == null) return null;
-    if (value < 5) return { label: 'Low', color: '#4caf50' };
-    if (value < 30) return { label: 'Moderate', color: '#ff9800' };
-    if (value < 100) return { label: 'High', color: '#f44336' };
-    return { label: 'Very High', color: '#880e4f' };
+    if (value < 5) return { label: 'Low', tone: 'good', color: '#4caf50' };
+    if (value < 30) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
+    if (value < 100) return { label: 'High', tone: 'high', color: '#f44336' };
+    return { label: 'Very High', tone: 'extreme', color: '#880e4f' };
   },
 
   getWeatherDescription(code) {

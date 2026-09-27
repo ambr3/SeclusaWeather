@@ -34,10 +34,10 @@ const API = {
     return data.results.map(r => ({
       lat: r.latitude,
       lon: r.longitude,
-      name: r.name,
-      country: r.country_code,
-      admin1: r.admin1 || '',
-      tz: r.timezone,
+      name: String(r.name || '').slice(0, 80),
+      country: String(r.country_code || '').slice(0, 8),
+      admin1: String(r.admin1 || '').slice(0, 80),
+      tz: typeof r.timezone === 'string' ? r.timezone.slice(0, 64) : undefined,
     })).filter((r) => this._validCoords(r.lat, r.lon) && r.name);
   },
 

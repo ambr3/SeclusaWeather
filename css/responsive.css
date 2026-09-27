@@ -189,7 +189,21 @@
   }
 
   .current-weather__arc {
-    width: min(100%, 300px);
+    width: min(100%, 280px);
+  }
+
+  .earth-arc {
+    padding: 0.8rem 0.8rem 0.85rem;
+    margin-top: 0.2rem;
+  }
+
+  .earth-arc .current-weather__arc {
+    width: min(100%, 260px);
+  }
+
+  .earth-arc__facts {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
   }
 
   .detail-grid {

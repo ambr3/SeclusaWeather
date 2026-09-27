@@ -1,7 +1,7 @@
-const CACHE_NAME = 'seclusaweather-v0.5.37';
+const CACHE_NAME = 'seclusaweather-v0.6.0';
 const API_CACHE = 'seclusaweather-api-v1';
-const VERSION = 'v0.5.37';
-const ASSET_VER = '0.5.37';
+const VERSION = 'v0.6.0';
+const ASSET_VER = '0.6.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -21,7 +21,13 @@ const STATIC_ASSETS = [
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/icon-maskable-192.png',
-  './assets/icons/icon-maskable-512.png'
+  './assets/icons/icon-maskable-512.png',
+  './assets/fonts/dm-sans-latin-400-normal.woff2',
+  './assets/fonts/dm-sans-latin-600-normal.woff2',
+  './assets/fonts/dm-sans-latin-700-normal.woff2',
+  './assets/fonts/sora-latin-600-normal.woff2',
+  './assets/fonts/sora-latin-700-normal.woff2',
+  './assets/fonts/sora-latin-800-normal.woff2'
 ];
 
 self.addEventListener('install', (event) => {
