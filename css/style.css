@@ -905,6 +905,23 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 0.8rem;
+  gap: 0.75rem;
+}
+
+.current-weather__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.current-weather__updated {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.85;
+  margin: 0 0 0.28rem;
+  line-height: 1.2;
 }
 
 .current-weather__location {
@@ -954,8 +971,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 .current-weather__temp-row {
   display: flex;
-  align-items: baseline;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.85rem;
   margin-bottom: 0.15rem;
   flex-wrap: wrap;
 }
@@ -970,7 +987,6 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 .current-weather__meta {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
   flex-wrap: wrap;
@@ -983,30 +999,27 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   margin-bottom: 0;
 }
 
-.current-weather__updated {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0;
-}
-
 .current-weather__summary {
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--color-text);
-  padding: 0.3rem 0.7rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  white-space: nowrap;
-  align-self: center;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  line-height: 1.25;
+  max-width: min(100%, 22rem);
+  text-wrap: balance;
 }
 
 .current-weather__celestial {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 1.4rem;
-  margin: 0.35rem 0 0.45rem;
+  margin: 0.35rem 0 0.25rem;
 }
 
 .celestial {
@@ -1060,14 +1073,32 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   width: 1px;
   height: 3rem;
   background: var(--color-card-border);
+  align-self: center;
 }
 
-.current-weather__phase {
-  text-align: center;
-  font-size: 0.95rem;
+.celestial__phase {
+  font-size: 0.9rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0.4rem 0 0;
+  opacity: 0.95;
+  line-height: 1.2;
+  text-transform: none;
+  text-align: center;
+  color: var(--color-text);
+  max-width: 8.5rem;
+  overflow-wrap: anywhere;
+}
+
+.celestial__phase-illum {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0.12rem 0 0;
+  opacity: 0.78;
+  line-height: 1.2;
+  text-align: center;
   color: var(--color-text-muted);
-  margin-bottom: 0.65rem;
 }
 
 .current-weather__arc {
@@ -1141,34 +1172,6 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   font-size: 4.2px;
 }
 
-.current-weather__arc-label {
-  position: absolute;
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: var(--color-text, #fff);
-  line-height: 1.15;
-  white-space: nowrap;
-  max-width: none;
-  z-index: 2;
-  pointer-events: none;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55), 0 0 10px rgba(0, 0, 0, 0.25);
-  letter-spacing: -0.01em;
-}
-
-.current-weather__arc-label--rise {
-  left: 0;
-  top: 60%;
-  transform: none;
-  text-align: left;
-}
-
-.current-weather__arc-label--set {
-  right: 0;
-  top: 60%;
-  transform: none;
-  text-align: right;
-}
-
 .current-weather__arc-orb {
   position: absolute;
   width: 36px;
@@ -1195,16 +1198,20 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   z-index: 1;
 }
 
+/* Below horizon: dim / fade, don't hard-hide — still shows where body is. */
 .current-weather__arc-orb.is-below {
-  opacity: 0.45;
-  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.35)) brightness(0.75);
+  opacity: 0.22;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.4)) brightness(0.55);
+  box-shadow: none;
 }
 
 .current-weather__arc-sun:not(.is-below) {
+  opacity: 1;
   box-shadow: 0 0 18px 5px rgba(255, 217, 61, 0.45);
 }
 
 .current-weather__arc-moon:not(.is-below) {
+  opacity: 1;
   box-shadow: 0 0 10px 2px rgba(200, 220, 255, 0.25);
 }
 
@@ -1657,38 +1664,96 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 }
 
 .hourly-chart__modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.8rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem;
+  margin-bottom: 0.85rem;
+  padding: 0.22rem;
   max-width: 100%;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .hourly-chart__mode {
-  flex: 0 0 auto;
-  padding: 0.32rem 0.7rem;
+  appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.42rem 0.55rem;
   font-family: var(--font-body);
   font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text);
-  background: var(--color-card);
-  border: 1px solid var(--color-card-border);
-  border-radius: 50px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
-  backdrop-filter: blur(var(--blur));
-  transition: background 0.15s ease, color 0.15s ease;
+  text-align: center;
+  line-height: 1.2;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.15s ease;
 }
 
 .hourly-chart__mode:hover {
-  background: var(--color-card-hover);
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hourly-chart__mode:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.hourly-chart__mode:active {
+  transform: scale(0.98);
 }
 
 .hourly-chart__mode.is-active {
-  background: linear-gradient(90deg, #22d3ee, #38bdf8);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 4px 16px -4px rgba(34, 211, 238, 0.65);
+  box-shadow:
+    0 4px 14px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.hourly-chart__mode--temp.is-active {
+  background: linear-gradient(135deg, #ff8a65, #ff7043 55%, #f4511e);
+  box-shadow:
+    0 6px 18px -6px rgba(255, 112, 67, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.hourly-chart__mode--rain.is-active {
+  background: linear-gradient(135deg, #67e8f9, #38bdf8 55%, #0ea5e9);
+  box-shadow:
+    0 6px 18px -6px rgba(56, 189, 248, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.hourly-chart__mode--solar.is-active {
+  color: #1a1408;
+  background: linear-gradient(135deg, #fde68a, #facc15 55%, #eab308);
+  box-shadow:
+    0 6px 18px -6px rgba(250, 204, 21, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+body.dynamic-text.auto-dark .hourly-chart__modes {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+body.theme-dark .hourly-chart__modes {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .hourly-chart__hint {
@@ -2246,6 +2311,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 /* Hourly detail modal */
 body.has-modal {
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .hourly-modal {
@@ -2256,6 +2322,7 @@ body.has-modal {
   place-items: center;
   padding: 0.6rem;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .hourly-modal__backdrop {
@@ -2273,7 +2340,7 @@ body.has-modal {
   gap: 0.25rem;
   width: min(440px, 96vw);
   height: auto;
-  max-height: min(90dvh, 90vh);
+  max-height: none;
   background: rgba(15, 40, 90, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 18px;
@@ -2282,6 +2349,7 @@ body.has-modal {
   touch-action: manipulation;
   animation: hourlyModalIn 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .hourly-modal__body {
@@ -2293,6 +2361,9 @@ body.has-modal {
   text-align: center;
   color: #eef2ff;
   overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .hourly-modal__viewport {
@@ -2300,6 +2371,8 @@ body.has-modal {
   width: 100%;
   overflow: hidden;
   touch-action: pan-x;
+  overscroll-behavior: none;
+  flex: 0 0 auto;
 }
 
 .hourly-modal__track {
@@ -2307,45 +2380,95 @@ body.has-modal {
   width: 300%;
   will-change: transform;
   transform: translate3d(-33.3333%, 0, 0);
+  overflow: hidden;
 }
 
 .hourly-modal__slide {
   flex: 0 0 33.3333%;
   width: 33.3333%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .hourly-modal__pane {
-  padding: 0.85rem 0.7rem 0.65rem;
+  padding: 0.7rem 0.65rem 0.35rem;
+  padding-right: max(0.65rem, 2.6rem); /* clear the × button — short summaries make head clipping obvious */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 0.12rem;
-  overflow: hidden;
+  gap: 0.08rem;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 .hourly-modal__pane--empty {
   opacity: 0;
-  min-height: 8rem;
+  min-height: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .hourly-modal__stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-  margin-top: 0.55rem;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
   text-align: left;
   flex: 0 0 auto;
   align-content: start;
 }
 
-.hourly-modal__hint {
+.hourly-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   margin-top: 0.45rem;
-  padding-top: 0.15rem;
-  font-size: 0.68rem;
-  opacity: 0.6;
+  text-align: left;
+  flex: 0 0 auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.hourly-modal__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.38rem 0.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+  line-height: 1.25;
+  min-height: 1.85rem;
+  box-sizing: border-box;
+}
+
+.hourly-modal__row:last-child {
+  border-bottom: none;
+}
+
+.hourly-modal__row-label {
+  opacity: 0.7;
+  font-weight: 600;
   flex-shrink: 0;
+}
+
+.hourly-modal__row-value {
+  font-weight: 800;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hourly-modal__hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.35rem 0.75rem 0.55rem;
+  font-size: 0.68rem;
+  opacity: 0.65;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .hourly-modal__close {
@@ -2400,6 +2523,19 @@ body.has-modal {
   margin-bottom: 0.1rem;
 }
 
+.hourly-modal__head {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  opacity: 0.95;
+  margin: 0 0 0.15rem;
+  padding-right: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip; /* never ellipsis-truncate day/date */
+}
+
 .hourly-modal__time {
   font-size: 1.05rem;
   font-weight: 700;
@@ -2441,20 +2577,27 @@ body.has-modal {
 }
 
 .hourly-modal__summary {
-  margin: 0.35rem auto 0.15rem;
-  max-width: 36ch;
-  font-size: 0.88rem;
+  margin: 0.25rem auto 0.15rem;
+  max-width: 38ch;
+  font-size: 0.84rem;
   font-weight: 600;
   font-style: italic;
-  line-height: 1.4;
+  line-height: 1.35;
   opacity: 0.95;
   color: #eef2ff;
   text-wrap: pretty;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  /* Reserve 5 lines as a safety buffer; never show more */
+  min-height: calc(1.35em * 5);
+  max-height: calc(1.35em * 5);
+  overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+  -webkit-line-clamp: 5;
+}
+
+.hourly-modal--forecast .hourly-modal__stats {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .hourly-modal__stat {
@@ -2533,13 +2676,42 @@ body.has-modal {
   opacity: 0.8;
 }
 
+.hourly-modal--dense .hourly-modal__pane {
+  padding: 0.55rem 0.5rem 0.35rem;
+  padding-right: max(0.5rem, 2.5rem);
+  gap: 0.06rem;
+}
+.hourly-modal--dense .hourly-modal__temp {
+  font-size: 1.5rem;
+}
+.hourly-modal--dense .hourly-modal__summary {
+  font-size: 0.78rem;
+  margin: 0.15rem auto 0.1rem;
+  line-height: 1.3;
+  min-height: calc(1.3em * 5);
+  max-height: calc(1.3em * 5);
+}
+.hourly-modal--dense .hourly-modal__stats {
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+.hourly-modal--dense .hourly-modal__stat {
+  padding: 0.28rem 0.32rem;
+}
+.hourly-modal--dense .hourly-modal__stat-label {
+  font-size: 0.48rem;
+}
+.hourly-modal--dense .hourly-modal__stat-value {
+  font-size: 0.7rem;
+}
+
 @media (max-width: 520px) {
   .hourly-modal {
     padding: 0.35rem;
   }
   .hourly-modal__card {
     width: 100%;
-    max-height: min(72dvh, 72vh);
+    max-height: none;
     border-radius: 14px;
     gap: 0.08rem;
   }
@@ -2549,17 +2721,11 @@ body.has-modal {
     font-size: 1.25rem;
   }
   .hourly-modal__pane {
-    padding: 0.55rem 0.45rem 0.4rem;
+    padding: 0.55rem 0.45rem 0.35rem;
+    padding-right: max(0.45rem, 2.4rem);
   }
-  .hourly-modal__date {
-    font-size: 0.62rem;
-  }
-  .hourly-modal__time {
-    font-size: 1.05rem;
-  }
-  .hourly-modal__icon {
-    width: 40px;
-    height: 40px;
+  .hourly-modal__head {
+    font-size: 0.74rem;
   }
   .hourly-modal__temp {
     font-size: 1.55rem;
@@ -2567,19 +2733,15 @@ body.has-modal {
   .hourly-modal__temp-low {
     font-size: 0.9rem;
   }
-  .hourly-modal__desc {
-    font-size: 0.75rem;
-  }
   .hourly-modal__summary {
-    font-size: 0.82rem;
-    max-width: 32ch;
-    margin: 0.3rem auto 0.15rem;
-    font-style: italic;
+    font-size: 0.8rem;
+    max-width: 34ch;
+    margin: 0.2rem auto 0.08rem;
   }
   .hourly-modal__stats {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.28rem;
-    margin-top: 0.45rem;
+    margin-top: 0.35rem;
   }
   .hourly-modal__stat {
     padding: 0.32rem 0.35rem;
@@ -2594,9 +2756,8 @@ body.has-modal {
     font-size: 0.72rem;
   }
   .hourly-modal__hint {
-    font-size: 0.6rem;
-    margin-top: 0.3rem;
-    padding-top: 0.1rem;
+    font-size: 0.62rem;
+    padding: 0.3rem 0.55rem 0.45rem;
   }
   .hourly-modal__close {
     top: 0.4rem;

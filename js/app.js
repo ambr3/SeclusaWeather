@@ -218,6 +218,8 @@ const App = {
       UI.markOffline(!navigator.onLine);
     }
 
+    this._ensureDefaultLocation();
+
     if (navigator.onLine) {
       this.startAutoRefresh();
       if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) {
@@ -237,6 +239,20 @@ const App = {
     if (!el || el.classList.contains('is-leaving')) return;
     el.classList.add('is-leaving');
     setTimeout(() => { el.classList.add('hidden'); }, 520);
+  },
+
+  _ensureDefaultLocation() {
+    if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) return;
+    const d = CONFIG.DEFAULT_LOCATION;
+    if (!d) return;
+    this.lastCity = d.name;
+    this.lastCountry = d.country || '';
+    this.lastLat = d.lat;
+    this.lastLon = d.lon;
+    Utils.safeSet('lastCity', d.name);
+    Utils.safeSet('lastCountry', d.country || '');
+    Utils.safeSet('lastLat', String(d.lat));
+    Utils.safeSet('lastLon', String(d.lon));
   },
 
   startAutoRefresh() {

@@ -40,8 +40,19 @@
   }
 
   .current-weather__summary {
-    font-size: 0.78rem;
-    padding: 0.25rem 0.55rem;
+    font-size: 0.74rem;
+    padding: 0.28rem 0.65rem;
+    max-width: 100%;
+  }
+
+  .hourly-chart__modes {
+    gap: 0.15rem;
+    padding: 0.18rem;
+  }
+
+  .hourly-chart__mode {
+    font-size: 0.72rem;
+    padding: 0.38rem 0.4rem;
   }
 
   .detail-grid {
@@ -179,10 +190,6 @@
 
   .current-weather__arc {
     width: min(100%, 300px);
-  }
-
-  .current-weather__arc-label {
-    font-size: 0.78rem;
   }
 
   .detail-grid {

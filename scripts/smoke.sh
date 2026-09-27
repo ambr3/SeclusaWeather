@@ -109,9 +109,36 @@ const good = Utils.formatTemp(0, 'metric');
 if (good !== '0°C') { console.error('formatTemp 0 failed', good); process.exit(1); }
 if (Utils.formatPrecip(0, 'metric') != null) { console.error('formatPrecip 0 should be null'); process.exit(1); }
 if (Utils.getWindDirection(0) !== 'N') { console.error('wind dir'); process.exit(1); }
+if (Utils.getMoonPhaseName(0) !== 'New Moon') { console.error('moon new'); process.exit(1); }
+if (Utils.getMoonPhaseName(0.5) !== 'Full Moon') { console.error('moon full'); process.exit(1); }
+if (Utils.getMoonIllumination(0.5) !== 100) { console.error('illum full'); process.exit(1); }
+if (Utils.getMoonIllumination(0) !== 0) { console.error('illum new'); process.exit(1); }
 console.log('unit helpers ok');
 NODE
 pass "node unit helpers"
+
+# --- default London + modal/earth review guards ---
+grep -q "DEFAULT_LOCATION" js/config.js || bad "DEFAULT_LOCATION missing"
+grep -q "name: 'London'" js/config.js || bad "London default missing"
+grep -q "lat: 51.5074" js/config.js || bad "London lat missing"
+grep -q "_ensureDefaultLocation" js/app.js || bad "_ensureDefaultLocation missing"
+grep -q "built-in \*\*London\*\* default" README.md || bad "README London default note missing"
+grep -q '_modalPaneHLocked' js/ui.js || bad "modal height settle lock missing"
+grep -q 'settle = false' js/ui.js || bad "modal settle remasure missing"
+grep -q '{ html = false }' js/ui.js || bad "_statRow html opt-in missing"
+# Moon phase under Moon column; celestial top-aligned so Rise/Set stay level
+grep -q 'celestial__phase' js/ui.js || bad "celestial__phase missing"
+grep -q 'celestial__phase-illum' js/ui.js || bad "celestial__phase-illum missing"
+grep -q "align-items: flex-start" css/style.css || bad "celestial columns not top-aligned"
+grep -q '_applyWeatherTheme' js/ui.js || bad "live weather theme helper missing"
+grep -q 'sun.below ? 0 : 1' js/ui.js || bad "sunset→night theme flip missing"
+! grep -q 'current-weather__phase' js/ui.js || bad "current-weather__phase should stay removed"
+# Fixed earth day = top half (no spin with sun)
+grep -q 'Day = top half, night = bottom' js/ui.js || bad "fixed earth day/night comment missing"
+grep -q 'M24,50 A26,26 0 0 1 76,50 Z' js/ui.js || bad "fixed day-top earth path missing"
+# Head labels escaped
+grep -q 'hourly-modal__head">${this._esc' js/ui.js || bad "modal head not escaped"
+pass "default London / modal / earth guards"
 
 if [ "$fail" -ne 0 ]; then
   echo "SMOKE FAILED"

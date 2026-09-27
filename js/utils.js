@@ -33,7 +33,7 @@ const Utils = {
     return String(out).replace(/\s+(AM|PM)/i, '\u202F$1');
   },
 
-  // Compact clock for tight UI (celestial row / arc labels) — stays one line at ~110% zoom.
+  // Compact clock for tight UI (celestial row / arc labels).
   formatTimeCompact(isoString, tz) {
     return this.formatTime(isoString, tz)
       .replace(/\u202F/g, ' ')

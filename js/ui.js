@@ -34,9 +34,8 @@ const UI = {
     return this._measureCtx;
   },
 
-  // Full-orbit position around the Earth disc. Rise = left, noon = top,
-  // set = right, midnight = bottom. Daytime rides the lit (upper) semicircle;
-  // night continues under through the dark side so sun/moon complete a rotation.
+  // Full-orbit around a fixed Earth (day = top, night = bottom).
+  // Rise = left, noon = top, set = right, midnight = bottom.
   _orbitFor(rise, set, tz, radius) {
     if (!rise || !set) return null;
     const r = Utils.parseLocal(rise, tz).getTime();
@@ -84,6 +83,43 @@ const UI = {
       deg: +((-angle * 180) / Math.PI).toFixed(2),
       below,
     };
+  },
+
+  // True while the sun is above the horizon (rise→set). Null if times missing.
+  _sunIsUp(sunrise, sunset, tz) {
+    const orb = this._orbitFor(sunrise, sunset, tz, 1);
+    if (!orb) return null;
+    return !orb.below;
+  },
+
+  _THEME_CLASSES: [
+    'theme-clear', 'theme-clear-night',
+    'theme-clouds', 'theme-clouds-night', 'theme-rain', 'theme-rain-night',
+    'theme-snow', 'theme-snow-night', 'theme-thunder', 'theme-thunder-night',
+    'theme-drizzle', 'theme-drizzle-night', 'theme-mist', 'theme-mist-night',
+  ],
+
+  _THEME_COLORS: {
+    'theme-clear': '#2e7cf0', 'theme-clear-night': '#14204e',
+    'theme-clouds': '#3f79c6', 'theme-rain': '#465369',
+    'theme-snow': '#b7cbe0', 'theme-thunder': '#101633',
+    'theme-drizzle': '#55677e', 'theme-mist': '#8295aa',
+    'theme-clouds-night': '#2a3f66', 'theme-rain-night': '#1e3a5c',
+    'theme-snow-night': '#33486b', 'theme-thunder-night': '#1a2040',
+    'theme-drizzle-night': '#243d5e', 'theme-mist-night': '#38466b',
+  },
+
+  _applyWeatherTheme(weatherCode, isDay) {
+    const theme = Utils.getThemeClass(weatherCode, isDay);
+    const isDark = document.body.classList.contains('theme-dark');
+    const isDyn = document.body.classList.contains('dynamic-text');
+    document.body.classList.remove(...this._THEME_CLASSES);
+    document.body.classList.add(theme);
+    document.body.classList.toggle('theme-dark', isDark);
+    document.body.classList.toggle('dynamic-text', isDyn);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = this._THEME_COLORS[theme] || '#4facfe';
+    return theme;
   },
 
   _hourlyStartIdx(hourly) {
@@ -196,7 +232,6 @@ const UI = {
     const nowPop = this._meaningfulNowPop(c, data.hourly, nowStartIdx);
     const dayPop = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
     const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, nowPop, c.precipitation ?? 0, c.snowfall ?? 0);
-    const icon = WeatherIcons.get(iconCode, c.is_day);
     const temp = Utils.formatTemp(c.temperature_2m, units);
     const feels = Utils.formatTemp(c.apparent_temperature, units);
     const desc = Utils.getWeatherDescription(iconCode);
@@ -205,10 +240,9 @@ const UI = {
     const sunset = d.sunset && d.sunset[0] ? Utils.formatTimeCompact(d.sunset[0], this._tz) : '—';
     const moonrise = d.moonrise && d.moonrise[0] ? Utils.formatTimeCompact(d.moonrise[0], this._tz) : '—';
     const moonset = d.moonset && d.moonset[0] ? Utils.formatTimeCompact(d.moonset[0], this._tz) : '—';
-    const phase = d.moon_phase && d.moon_phase.length ? d.moon_phase[0] : null;
-    const phaseRow = phase != null
-      ? `${Utils.getMoonPhaseName(phase)} · ${Utils.getMoonIllumination(phase)}% illuminated`
-      : '';
+    const phase = d.moon_phase && d.moon_phase[0] != null ? d.moon_phase[0] : null;
+    const phaseName = phase != null ? Utils.getMoonPhaseName(phase) : '';
+    const phaseIllum = phase != null ? `${Utils.getMoonIllumination(phase)}% lit` : '';
 
     const dayHigh = d.temperature_2m_max && d.temperature_2m_max[0] != null ? Utils.formatTemp(d.temperature_2m_max[0], units) : null;
     const dayLow = d.temperature_2m_min && d.temperature_2m_min[0] != null ? Utils.formatTemp(d.temperature_2m_min[0], units) : null;
@@ -222,6 +256,12 @@ const UI = {
 
     const SUN_R = 42;
     const MOON_R = 36;
+    const sunOrb = this._orbitFor(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], this._tz, SUN_R);
+    const moonOrb = this._orbitFor(d.moonrise && d.moonrise[0], d.moonset && d.moonset[0], this._tz, MOON_R);
+    // Night mode follows the sun horizon, not the stale API is_day snapshot.
+    const sunUp = sunOrb ? !sunOrb.below : null;
+    const isDay = sunUp == null ? (c.is_day === 0 ? 0 : 1) : (sunUp ? 1 : 0);
+    const iconLive = WeatherIcons.get(iconCode, isDay);
     this._arc = {
       tz: this._tz,
       sunrise: d.sunrise && d.sunrise[0],
@@ -230,21 +270,20 @@ const UI = {
       moonset: d.moonset && d.moonset[0],
       sunR: SUN_R,
       moonR: MOON_R,
+      weatherCode: iconCode,
+      isDay,
     };
-
-    const sunOrb = this._orbitFor(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], this._tz, SUN_R);
-    const moonOrb = this._orbitFor(d.moonrise && d.moonrise[0], d.moonset && d.moonset[0], this._tz, MOON_R);
-    const earthRot = sunOrb ? sunOrb.deg : 0;
 
     this.$('currentWeather').innerHTML = `
       <div class="current-weather__top">
-        <div>
+        <div class="current-weather__heading">
+          <div class="current-weather__updated" id="currentUpdated">Updated ${Utils.formatClock(new Date(Number.isFinite(this._dataUpdatedAt) ? this._dataUpdatedAt : Date.now()))}</div>
           <div class="current-weather__location">
             ${this._esc(data._cityName)}<span class="current-weather__country">${this._esc(data._country)}</span>
           </div>
           <div class="current-weather__desc">${this._esc(desc)}</div>
         </div>
-        <div class="current-weather__icon${c.is_day === 0 ? ' is-night' : ''}">${icon}</div>
+        <div class="current-weather__icon${isDay === 0 ? ' is-night' : ''}">${iconLive}</div>
       </div>
       <div class="current-weather__temp-row">
         <div class="current-weather__temp">${temp}</div>
@@ -252,7 +291,6 @@ const UI = {
       </div>
       <div class="current-weather__meta">
         <div class="current-weather__feels">Feels like ${feels}</div>
-        <div class="current-weather__updated" id="currentUpdated">Updated ${Utils.formatClock(new Date(Number.isFinite(this._dataUpdatedAt) ? this._dataUpdatedAt : Date.now()))}</div>
       </div>
       <div class="current-weather__celestial">
         <div class="celestial">
@@ -269,19 +307,20 @@ const UI = {
             <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${moonrise}</span></div>
             <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${moonset}</span></div>
           </div>
+          ${phaseName ? `<div class="celestial__phase">${this._esc(phaseName)}</div>` : ''}
+          ${phaseIllum ? `<div class="celestial__phase-illum">${this._esc(phaseIllum)}</div>` : ''}
         </div>
       </div>
-      ${phaseRow ? `<div class="current-weather__phase">${phaseRow}</div>` : ''}
       <div class="current-weather__arc" aria-hidden="true">
         <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <radialGradient id="earthDayGlow" cx="30%" cy="28%" r="75%">
+            <radialGradient id="earthDayGlow" cx="50%" cy="28%" r="75%">
               <stop offset="0%" stop-color="#d4efff"/>
               <stop offset="28%" stop-color="#5bb4ef"/>
               <stop offset="65%" stop-color="#1a6fbf"/>
               <stop offset="100%" stop-color="#0a3a6e"/>
             </radialGradient>
-            <radialGradient id="earthNightGlow" cx="58%" cy="55%" r="75%">
+            <radialGradient id="earthNightGlow" cx="50%" cy="72%" r="75%">
               <stop offset="0%" stop-color="#1a2744"/>
               <stop offset="55%" stop-color="#0a101c"/>
               <stop offset="100%" stop-color="#02050c"/>
@@ -297,12 +336,11 @@ const UI = {
             <circle cx="50" cy="50" r="26.6" class="current-weather__earth-rim"/>
             <g clip-path="url(#earthClip)">
               <circle cx="50" cy="50" r="26" fill="url(#earthNightGlow)"/>
-              <g id="earthLitHalf" transform="rotate(${earthRot} 50 50)">
-                <path d="M50,24 A26,26 0 0 1 50,76 Z" fill="url(#earthDayGlow)"/>
-                <path d="M50,24 A26,26 0 0 1 50,76 Z" fill="rgba(255,255,255,0.10)"/>
+              <!-- Day = top half, night = bottom. Earth stays fixed; sun/moon orbit around it. -->
+              <g id="earthLitHalf">
+                <path d="M24,50 A26,26 0 0 1 76,50 Z" fill="url(#earthDayGlow)"/>
+                <path d="M24,50 A26,26 0 0 1 76,50 Z" fill="rgba(255,255,255,0.10)"/>
               </g>
-              <ellipse cx="38" cy="36" rx="9" ry="7" fill="rgba(255,255,255,0.16)"/>
-              <ellipse cx="62" cy="58" rx="10" ry="8" fill="rgba(0,0,0,0.12)"/>
             </g>
             <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
           </g>
@@ -311,62 +349,57 @@ const UI = {
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="9" text-anchor="middle">Noon</text>
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="98" text-anchor="middle">Night</text>
         </svg>
-        <div class="current-weather__arc-label current-weather__arc-label--rise">${sunrise !== '—' ? sunrise : ''}</div>
-        <div class="current-weather__arc-label current-weather__arc-label--set">${sunset !== '—' ? sunset : ''}</div>
         <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}" style="${sunOrb ? `left:${sunOrb.left}%;top:${sunOrb.top}%` : 'display:none'}">${WeatherIcons._sun()}</div>
         <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}" style="${moonOrb ? `left:${moonOrb.left}%;top:${moonOrb.top}%` : 'display:none'}">${WeatherIcons._moon()}</div>
       </div>
     `;
 
-    const theme = Utils.getThemeClass(iconCode, c.is_day);
-    const isDark = document.body.classList.contains('theme-dark');
-    const isDyn = document.body.classList.contains('dynamic-text');
-    document.body.classList.remove('theme-clear', 'theme-clear-night',
-      'theme-clouds', 'theme-clouds-night', 'theme-rain', 'theme-rain-night',
-      'theme-snow', 'theme-snow-night', 'theme-thunder', 'theme-thunder-night',
-      'theme-drizzle', 'theme-drizzle-night', 'theme-mist', 'theme-mist-night');
-    document.body.classList.add(theme);
-    document.body.classList.toggle('theme-dark', isDark);
-    document.body.classList.toggle('dynamic-text', isDyn);
-    const themeColors = {
-      'theme-clear': '#2e7cf0', 'theme-clear-night': '#14204e',
-      'theme-clouds': '#3f79c6', 'theme-rain': '#465369',
-      'theme-snow': '#b7cbe0', 'theme-thunder': '#101633',
-      'theme-drizzle': '#55677e', 'theme-mist': '#8295aa',
-      'theme-clouds-night': '#2a3f66', 'theme-rain-night': '#1e3a5c',
-      'theme-snow-night': '#33486b', 'theme-thunder-night': '#1a2040',
-      'theme-drizzle-night': '#243d5e', 'theme-mist-night': '#38466b'
-    };
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = themeColors[theme] || '#4facfe';
-
+    this._applyWeatherTheme(iconCode, isDay);
     this.startLiveClock();
   },
 
   startLiveClock() {
     if (this._liveClockTimer) clearInterval(this._liveClockTimer);
+    this.updateLiveClock();
     this._liveClockTimer = setInterval(() => this.updateLiveClock(), 60000);
   },
 
   updateLiveClock() {
     if (!this._arc) return;
-    const { tz, sunrise, sunset, moonrise, moonset, sunR, moonR } = this._arc;
+    const { tz, sunrise, sunset, moonrise, moonset, sunR, moonR, weatherCode } = this._arc;
     const sun = this._orbitFor(sunrise, sunset, tz, sunR);
     const moon = this._orbitFor(moonrise, moonset, tz, moonR);
     const sunEl = document.querySelector('.current-weather__arc-sun');
     const moonEl = document.querySelector('.current-weather__arc-moon');
-    const lit = document.getElementById('earthLitHalf');
     if (sunEl && sun) {
       sunEl.style.left = `${sun.left}%`;
       sunEl.style.top = `${sun.top}%`;
-      sunEl.classList.toggle('is-below', sun.below);
+      sunEl.classList.toggle('is-below', !!sun.below);
+      sunEl.style.display = '';
+    } else if (sunEl) {
+      sunEl.style.display = 'none';
     }
     if (moonEl && moon) {
       moonEl.style.left = `${moon.left}%`;
       moonEl.style.top = `${moon.top}%`;
-      moonEl.classList.toggle('is-below', moon.below);
+      moonEl.classList.toggle('is-below', !!moon.below);
+      moonEl.style.display = '';
+    } else if (moonEl) {
+      moonEl.style.display = 'none';
     }
-    if (lit && sun) lit.setAttribute('transform', `rotate(${sun.deg} 50 50)`);
+    // Flip day/night theme when the sun crosses the horizon.
+    if (sun && weatherCode != null) {
+      const isDay = sun.below ? 0 : 1;
+      if (this._arc.isDay !== isDay) {
+        this._arc.isDay = isDay;
+        this._applyWeatherTheme(weatherCode, isDay);
+        const iconEl = document.querySelector('.current-weather__icon');
+        if (iconEl) {
+          iconEl.classList.toggle('is-night', isDay === 0);
+          iconEl.innerHTML = WeatherIcons.get(weatherCode, isDay);
+        }
+      }
+    }
   },
 
   renderDetailBoxes(data, aq, units) {
@@ -1074,6 +1107,7 @@ const UI = {
     if (!this._hourly || !this._hourly.time || !this._hourlyCount) return;
     this._modalMode = 'hourly';
     this._modalPaneH = null;
+    this._modalPaneHLocked = false;
     this._modalCount = this._hourlyCount;
     this._modalIndex = Math.max(0, Math.min(this._hourlyCount - 1, i));
     this._modalOpen = true;
@@ -1089,6 +1123,7 @@ const UI = {
     this._forecastCount = total;
     this._modalMode = 'forecast';
     this._modalPaneH = null;
+    this._modalPaneHLocked = false;
     this._modalCount = total;
     this._modalIndex = Math.max(0, Math.min(total - 1, i));
     this._modalOpen = true;
@@ -1135,6 +1170,7 @@ const UI = {
     }
     this._modalOpen = false;
     this._modalPaneH = null;
+    this._modalPaneHLocked = false;
     document.body.classList.remove('has-modal');
     if (this._modalKeyHandler) {
       document.removeEventListener('keydown', this._modalKeyHandler);
@@ -1142,6 +1178,9 @@ const UI = {
     }
     if (this._modalResizeHandler) {
       window.removeEventListener('resize', this._modalResizeHandler);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this._modalResizeHandler);
+      }
       this._modalResizeHandler = null;
     }
   },
@@ -1159,6 +1198,7 @@ const UI = {
             <div class="hourly-modal__viewport">
               <div class="hourly-modal__track"></div>
             </div>
+            <div class="hourly-modal__hint" id="hourlyModalHint" aria-live="polite"></div>
           </div>
           <button type="button" class="hourly-modal__close" aria-label="Close">&times;</button>
           <button type="button" class="hourly-modal__nav hourly-modal__nav--next" aria-label="${nextLabel}">&rsaquo;</button>
@@ -1170,9 +1210,13 @@ const UI = {
         this._modalResizeHandler = Utils.debounce(() => {
           if (!this._modalOpen) return;
           this._modalPaneH = null;
+          this._modalPaneHLocked = false;
           this._syncModalPaneHeight();
         }, 150);
         window.addEventListener('resize', this._modalResizeHandler);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', this._modalResizeHandler);
+        }
       }
     } else {
       const prev = modal.querySelector('.hourly-modal__nav--prev');
@@ -1182,56 +1226,93 @@ const UI = {
     }
     modal.classList.toggle('hourly-modal--forecast', this._modalMode === 'forecast');
     modal.classList.toggle('hourly-modal--hourly', this._modalMode !== 'forecast');
+    this._updateModalHint();
     return modal.querySelector('.hourly-modal__track');
   },
 
-  // Lock all swipe panes to one height (tallest of prev/cur/next), capped to the
-  // viewport — keeps size stable while swiping without a full-screen empty card.
-  _syncModalPaneHeight() {
+  _updateModalHint() {
+    const hint = this.$('hourlyModalHint');
+    if (!hint) return;
+    if (this._modalMode === 'forecast') {
+      const n = (this._modalIndex ?? 0) + 1;
+      const total = this._modalCount || 0;
+      hint.textContent = `Day ${n} of ${total} · swipe for more days`;
+    } else {
+      hint.textContent = 'Swipe for more hours';
+    }
+  },
+
+  // Fixed layout (5-line summary + fixed list rows). Grow until settle, then lock for the session.
+  _syncModalPaneHeight({ settle = false } = {}) {
     const modal = this.$('hourlyModal');
     const viewport = modal && modal.querySelector('.hourly-modal__viewport');
     const track = modal && modal.querySelector('.hourly-modal__track');
-    if (!viewport || !track) return;
-    const slides = track.querySelectorAll('.hourly-modal__slide');
-    const panes = track.querySelectorAll('.hourly-modal__pane');
-    panes.forEach((p) => { p.style.height = 'auto'; });
-    slides.forEach((s) => { s.style.height = 'auto'; });
-    track.style.height = 'auto';
-    viewport.style.height = 'auto';
+    if (!modal || !viewport || !track) return;
+    const slides = [...track.querySelectorAll('.hourly-modal__slide')];
+    const panes = [...track.querySelectorAll('.hourly-modal__pane')];
+    const center = panes[1] || panes.find((p) => !p.classList.contains('hourly-modal__pane--empty'));
+    if (!center) return;
 
-    let contentH = 0;
-    panes.forEach((p) => {
-      if (p.classList.contains('hourly-modal__pane--empty')) return;
-      contentH = Math.max(contentH, p.scrollHeight);
-    });
-    if (!contentH) return;
+    const clear = (el) => {
+      el.style.height = '';
+      el.style.minHeight = '';
+      el.style.maxHeight = '';
+      el.style.overflow = 'hidden';
+      el.style.overflowY = 'hidden';
+    };
+    modal.classList.remove('hourly-modal--dense');
+    panes.forEach(clear);
+    slides.forEach(clear);
+    clear(track);
+    clear(viewport);
+    void center.offsetHeight;
 
-    const isPhone = window.matchMedia('(max-width: 520px)').matches;
-    // Cap a bit lower on phones to leave room for ~110% browser zoom.
-    const cap = Math.floor(window.innerHeight * (isPhone ? 0.7 : 0.86));
-    const natural = Math.max(contentH, this._modalPaneH || 0);
-    const h = Math.min(natural, cap);
-    this._modalPaneH = h;
-    const scroll = natural > cap;
+    const vv = window.visualViewport;
+    const avail = Math.floor((vv && vv.height) || window.innerHeight);
+    const hintEl = modal.querySelector('.hourly-modal__hint');
+    const hintH = hintEl ? Math.ceil(hintEl.getBoundingClientRect().height) : 0;
+    const cap = Math.max(240, avail - 32 - hintH);
+
+    let h = center.offsetHeight;
+    if (!h) return;
+    if (h > cap) {
+      modal.classList.add('hourly-modal--dense');
+      void center.offsetHeight;
+      h = center.offsetHeight || h;
+    }
+    h = Math.min(Math.ceil(h), cap);
+
+    // Grow through early remasures; lock after settle so mid-swipe never resizes.
+    if (this._modalPaneH == null) this._modalPaneH = h;
+    else if (!this._modalPaneHLocked) this._modalPaneH = Math.max(this._modalPaneH, h);
+    if (settle) this._modalPaneHLocked = true;
+    h = this._modalPaneH;
 
     panes.forEach((p) => {
       p.style.height = `${h}px`;
-      p.style.overflowY = scroll ? 'auto' : 'hidden';
+      p.style.overflow = 'hidden';
+      p.style.overflowY = 'hidden';
     });
-    slides.forEach((s) => { s.style.height = `${h}px`; });
+    slides.forEach((s) => {
+      s.style.height = `${h}px`;
+      s.style.overflow = 'hidden';
+    });
     track.style.height = `${h}px`;
+    track.style.overflow = 'hidden';
     viewport.style.height = `${h}px`;
+    viewport.style.overflow = 'hidden';
   },
 
-  _statChip(label, value, tint, i) {
-    if (value == null) return '';
+  _statRow(label, value, { html = false } = {}) {
     const safeLabel = this._esc(label);
-    const safeValue = typeof value === 'string' && value.includes('<') ? value : this._esc(value);
-    return `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}" style="--i:${i}"><span class="hourly-modal__stat-label">${safeLabel}</span><span class="hourly-modal__stat-value">${safeValue}</span></div>`;
+    const raw = value == null || value === '' ? '—' : value;
+    // Opt-in HTML only (colored feels-like spans we build ourselves).
+    const safeValue = html ? String(raw) : this._esc(String(raw));
+    return `<div class="hourly-modal__row"><span class="hourly-modal__row-label">${safeLabel}</span><span class="hourly-modal__row-value">${safeValue}</span></div>`;
   },
 
-  // One or two plain-English sentences for the enlarged day pill.
-  _dayStory({ weekday, desc, high, low, pop, rainLabel, snowLabel, sunshine, daylight, sunrise, sunset }) {
+  // Day blurb: sky + temps + rain chance (sun times stay in the list). Max ~5 lines in CSS.
+  _dayStory({ weekday, desc, high, low, pop, rainLabel }) {
     const dayName = weekday === 'Today' ? 'Today' : weekday;
     const sky = (desc || 'mixed conditions').toLowerCase();
     const looksOk = /^(clear sky|mainly clear|partly cloudy|overcast)$/.test(sky);
@@ -1242,30 +1323,14 @@ const UI = {
         : `${dayName} brings ${sky}, warming to ${high} and cooling to ${low}.`;
     } else if (high !== '—') {
       open = looksOk
-        ? `${dayName} looks ${sky}, with temperatures near ${high}.`
-        : `${dayName} brings ${sky}, with temperatures near ${high}.`;
+        ? `${dayName} looks ${sky}, near ${high}.`
+        : `${dayName} brings ${sky}, near ${high}.`;
     } else {
       open = looksOk ? `${dayName} looks ${sky}.` : `${dayName} brings ${sky}.`;
     }
-
-    const mid = [];
-    if (snowLabel) mid.push(`snowfall around ${snowLabel}`);
-    else if (rainLabel && pop > 0) mid.push(`about a ${Math.round(pop)}% chance of rain (~${rainLabel})`);
-    else if (rainLabel) mid.push(`around ${rainLabel} of rain`);
-    else if (pop > 0) mid.push(`a ${Math.round(pop)}% chance of rain`);
-    if (mid.length) open += ` Expect ${mid.join(' and ')}.`;
-
-    const close = [];
-    if (sunrise && sunset) close.push(`the sun rises at ${sunrise} and sets at ${sunset}`);
-    else if (sunrise) close.push(`sunrise is at ${sunrise}`);
-    else if (sunset) close.push(`sunset is at ${sunset}`);
-    if (sunshine) close.push(`roughly ${sunshine} of sunshine`);
-    else if (daylight) close.push(`${daylight} of daylight`);
-    if (close.length) {
-      open += ` ${close[0].charAt(0).toUpperCase()}${close[0].slice(1)}`;
-      if (close.length > 1) open += `, with ${close.slice(1).join(' and ')}`;
-      open += '.';
-    }
+    if (rainLabel && pop > 0) open += ` Expect about a ${Math.round(pop)}% chance of rain (~${rainLabel}).`;
+    else if (rainLabel) open += ` Expect around ${rainLabel} of rain.`;
+    else if (pop > 0) open += ` Rain chance about ${Math.round(pop)}%.`;
     return open;
   },
 
@@ -1283,10 +1348,9 @@ const UI = {
     const dewPoint = nowVals && nowVals.dew != null ? nowVals.dew : (h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null);
     const feels = nowVals && nowVals.feels != null ? nowVals.feels : (h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null);
     const feelsRaw = nowVals && nowVals.feelsRaw != null ? nowVals.feelsRaw : (h.apparent_temperature && h.apparent_temperature[idx]);
-    const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${feels}</span>` : feels) : null;
+    const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${this._esc(feels)}</span>` : feels) : null;
     const pop = nowVals && modalIndex === 0 ? nowVals.pop : this._meaningfulHourPop(h, idx);
     const precip = nowVals && nowVals.precip != null ? nowVals.precip : (h.precipitation ? h.precipitation[idx] : 0);
-    const snow = nowVals && nowVals.snow != null ? nowVals.snow : (h.snowfall ? h.snowfall[idx] : 0);
     const wind = nowVals && nowVals.wind != null ? nowVals.wind : (h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null);
     const windDir = nowVals && nowVals.windDir != null ? nowVals.windDir : (h.wind_direction_10m && h.wind_direction_10m[idx] != null ? Math.round(h.wind_direction_10m[idx]) : null);
     const humidity = nowVals && nowVals.humidity != null ? nowVals.humidity : (h.relative_humidity_2m && h.relative_humidity_2m[idx] != null ? `${Math.round(h.relative_humidity_2m[idx])}%` : null);
@@ -1296,15 +1360,8 @@ const UI = {
     const pressure = nowVals && nowVals.pressure != null ? nowVals.pressure : (h.pressure_msl && h.pressure_msl[idx] != null ? Utils.formatPressure(h.pressure_msl[idx], UI.pressUnit) : null);
     const cloud = nowVals && nowVals.cloud != null ? nowVals.cloud : (h.cloud_cover && h.cloud_cover[idx] != null ? `${Math.round(h.cloud_cover[idx])}%` : null);
     const visibility = nowVals && nowVals.visibility != null ? nowVals.visibility : (h.visibility && h.visibility[idx] != null ? Utils.formatVisibility(h.visibility[idx], UI.visUnit) : null);
-    const solar = Utils.formatSolar(h.shortwave_radiation && h.shortwave_radiation[idx]);
-    const cape = Utils.formatCape(
-      nowVals && nowVals.cape != null ? nowVals.cape : (h.cape && h.cape[idx])
-    );
     const windUnit = Utils.getWindUnit(UI.windUnit);
     const windVal = Utils.formatWind(wind, windDir, UI.windUnit);
-    const iconCode = WeatherIcons.adjustForPrecip(nowVals && nowVals.code != null ? nowVals.code : (h.weather_code ? h.weather_code[idx] : null), pop, precip, snow);
-    const icon = WeatherIcons.get(iconCode, nowVals && nowVals.isDay != null ? nowVals.isDay : (h.is_day && h.is_day[idx] != null ? h.is_day[idx] : 1));
-    const desc = Utils.getWeatherDescription(iconCode);
     const clock = Utils.formatTime(time, this._tz);
     let endClock = clock;
     try {
@@ -1327,31 +1384,25 @@ const UI = {
     } catch {
       dLabel = Utils.parseLocal(time, this._tz).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     }
-    let i = 0;
-    const s = (label, value, tint) => this._statChip(label, value, tint, i++);
+    const row = (label, value, opts) => this._statRow(label, value, opts);
+    const rainLabel = Utils.formatPrecip(precip, units) || (units === 'imperial' ? '0 in' : '0 mm');
+    const feelsHtml = feels != null && feelsRaw != null;
     return `
       <div class="hourly-modal__pane">
-        <div class="hourly-modal__date">${dLabel}</div>
-        <div class="hourly-modal__time">${tLabel}</div>
-        <div class="hourly-modal__icon">${icon}</div>
-        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${temp}</div>
-        <div class="hourly-modal__desc">${this._esc(desc)}</div>
-        <div class="hourly-modal__stats">
-          ${s('Feels like', feelsVal, 'feels')}
-          ${s('Chance', pop != null ? `${Math.round(pop)}%` : null, 'rain')}
-          ${s('Rainfall', Utils.formatPrecip(precip, units), 'precip')}
-          ${s('Snowfall', Utils.formatSnow(snow, units), 'snow')}
-          ${s('Humidity', humidity, 'humidity')}
-          ${s('Wind', windVal, 'wind')}
-          ${s('Gusts', gust != null ? `${gust} ${windUnit}` : null, 'wind')}
-          ${s('Dew point', dewPoint, 'dew')}
-          ${s('Pressure', pressure, 'pressure')}
-          ${s('Cloud cover', cloud, 'clouds')}
-          ${s('Visibility', visibility, 'visibility')}
-          ${s('Solar', solar, 'sun')}
-          ${s('CAPE', cape, 'uv')}
+        <div class="hourly-modal__head">${this._esc(dLabel)} · ${this._esc(tLabel)}</div>
+        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${this._esc(temp)}</div>
+        <div class="hourly-modal__list">
+          ${row('Feels like', feelsVal, { html: feelsHtml })}
+          ${row('Chance', pop != null ? `${Math.round(pop)}%` : null)}
+          ${row('Rainfall', rainLabel)}
+          ${row('Humidity', humidity)}
+          ${row('Wind', windVal)}
+          ${row('Gusts', gust != null ? `${gust} ${windUnit}` : null)}
+          ${row('Dew point', dewPoint)}
+          ${row('Pressure', pressure)}
+          ${row('Cloud cover', cloud)}
+          ${row('Visibility', visibility)}
         </div>
-        <div class="hourly-modal__hint">Swipe for more hours</div>
       </div>`;
   },
 
@@ -1378,44 +1429,39 @@ const UI = {
       WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[modalIndex],
       pop, rainSum ?? 0, snowSum ?? 0, units
     );
-    const icon = WeatherIcons.get(iconCode, true);
     const desc = Utils.getWeatherDescription(iconCode);
     const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex];
     const feelsVal = feelsHigh != null && feelsLow != null
       ? (feelsHighRaw != null
-          ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${feelsHigh} / ${feelsLow}</span>`
+          ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${this._esc(feelsHigh)} / ${this._esc(feelsLow)}</span>`
           : `${feelsHigh} / ${feelsLow}`)
       : null;
     const parsed = Utils.parseLocal(date + 'T00:00:00', this._tz);
-    const weekday = modalIndex === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
+    const weekdayLong = modalIndex === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
+    const weekdayShort = modalIndex === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'short' });
     const dateHeading = parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, month: 'short', day: 'numeric' });
-    const rainLabel = Utils.formatPrecip(rainSum, units);
-    const snowLabel = Utils.formatSnow(snowSum, units);
+    const rainZero = units === 'imperial' ? '0 in' : '0 mm';
+    const rainLabel = Utils.formatPrecip(rainSum, units) || rainZero;
+    const storyRain = Utils.formatPrecip(rainSum, units);
     const summary = this._dayStory({
-      weekday, desc, high, low, pop, rainLabel, snowLabel, sunshine, daylight, sunrise, sunset,
+      weekday: weekdayLong, desc, high, low, pop, rainLabel: storyRain,
     });
-    let i = 0;
-    const s = (label, value, tint) => this._statChip(label, value, tint, i++);
-    const dayHint = `Day ${modalIndex + 1} of ${this._modalCount} · swipe for more days`;
+    const row = (label, value, opts) => this._statRow(label, value, opts);
+    const feelsHtml = feelsHigh != null && feelsLow != null && feelsHighRaw != null;
     return `
       <div class="hourly-modal__pane">
-        <div class="hourly-modal__date">${weekday}</div>
-        <div class="hourly-modal__time">${dateHeading}</div>
-        <div class="hourly-modal__icon">${icon}</div>
-        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
-        <div class="hourly-modal__desc">${this._esc(desc)}</div>
-        ${summary ? `<div class="hourly-modal__summary">${this._esc(summary)}</div>` : ''}
-        <div class="hourly-modal__stats">
-          ${s('Feels like', feelsVal, 'feels')}
-          ${s('Chance', pop > 0 ? `${Math.round(pop)}%` : null, 'rain')}
-          ${s('Rainfall', rainLabel, 'precip')}
-          ${s('Snowfall', snowLabel, 'snow')}
-          ${s('Sunrise', sunrise, 'sunrise')}
-          ${s('Sunset', sunset, 'sunset')}
-          ${s('Sunshine', sunshine, 'sunshine')}
-          ${s('Daylight', daylight, 'sun')}
+        <div class="hourly-modal__head">${this._esc(weekdayShort)} · ${this._esc(dateHeading)}</div>
+        <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${this._esc(high)}<span class="hourly-modal__temp-low"> / ${this._esc(low)}</span></div>
+        <div class="hourly-modal__summary">${summary ? this._esc(summary) : ''}</div>
+        <div class="hourly-modal__list">
+          ${row('Feels like', feelsVal, { html: feelsHtml })}
+          ${row('Chance', `${Math.round(pop)}%`)}
+          ${row('Rainfall', rainLabel)}
+          ${row('Sunrise', sunrise)}
+          ${row('Sunset', sunset)}
+          ${row('Sunshine', sunshine)}
+          ${row('Daylight', daylight)}
         </div>
-        <div class="hourly-modal__hint">${dayHint}</div>
       </div>`;
   },
 
@@ -1440,7 +1486,17 @@ const UI = {
     // Force layout so translate uses real widths
     void track.offsetWidth;
     track.style.transform = 'translate3d(-33.3333%, 0, 0)';
-    this._syncModalPaneHeight();
+    this._updateModalHint();
+    const sync = (settle = false) => { if (this._modalOpen) this._syncModalPaneHeight({ settle }); };
+    sync(false);
+    // After open animation + fonts, remasure and lock (early paint can undersize).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => sync(true));
+    });
+    const card = this.$('hourlyModal') && this.$('hourlyModal').querySelector('.hourly-modal__card');
+    if (card) {
+      card.addEventListener('animationend', () => sync(true), { once: true });
+    }
     const focus = this.$('hourlyModal') && this.$('hourlyModal').querySelector('.hourly-modal__close');
     if (focus) focus.focus();
   },
@@ -1481,7 +1537,7 @@ const UI = {
     const mode = this._chartMode;
     const modeLabel = this._chartModeLabel(mode);
     const modePillsMarkup = this.CHART_MODES.map((m) =>
-      `<button type="button" class="hourly-chart__mode${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
+      `<button type="button" class="hourly-chart__mode hourly-chart__mode--${m}${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
     ).join('');
     const empty = () => {
       container.innerHTML = `
@@ -1694,7 +1750,7 @@ const UI = {
   },
 
   _chartModeShort(mode) {
-    return mode === 'temp' ? 'Temp & Dew'
+    return mode === 'temp' ? 'Temp'
       : mode === 'rain' ? 'Rain'
       : 'Solar';
   },

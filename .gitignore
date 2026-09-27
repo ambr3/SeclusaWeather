@@ -5,6 +5,9 @@ TEST-COMMANDS.md
 # Local opencode configuration — not part of the published site.
 .opencode/
 
+# Local agent revert snapshots (not part of the published site).
+.revert-stash/
+
 # Secrets / local env (none shipped; keep out if added later)
 .env
 .env.*
