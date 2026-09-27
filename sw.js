@@ -1,7 +1,7 @@
-const CACHE_NAME = 'seclusaweather-v0.5.27';
+const CACHE_NAME = 'seclusaweather-v0.5.34';
 const API_CACHE = 'seclusaweather-api-v1';
-const VERSION = 'v0.5.27';
-const ASSET_VER = '0.5.27';
+const VERSION = 'v0.5.34';
+const ASSET_VER = '0.5.34';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -122,7 +122,15 @@ self.addEventListener('fetch', (event) => {
             }
             return response;
           })
-          .catch(() => cache.match(request))
+          .catch(() =>
+            cache.match(request).then((cached) =>
+              cached || new Response(JSON.stringify({ error: 'offline' }), {
+                status: 503,
+                statusText: 'Service Unavailable',
+                headers: { 'Content-Type': 'application/json' },
+              })
+            )
+          )
       )
     );
     return;
@@ -133,8 +141,13 @@ self.addEventListener('fetch', (event) => {
       fetch(request)
         .then((response) => {
           if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+            try {
+              const u = new URL(request.url);
+              if (u.origin === self.location.origin && !u.search && !u.hash) {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+              }
+            } catch { /* ignore bad URLs */ }
           }
           return response;
         })

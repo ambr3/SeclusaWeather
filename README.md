@@ -96,7 +96,22 @@ Open the live site in your browser and install it as a PWA:
 
 ### Self-host
 
-Serve the repo as a static site. To harden responses with real headers (the in-page CSP meta can't block clickjacking on its own), deploy with the bundled samples: `.htaccess` for Apache, `_headers` for Netlify/Cloudflare Pages. GitHub Pages ignores both files.
+Serve the repo as a static site.
+
+**Prefer Netlify, Cloudflare Pages, Vercel, or Apache** so the bundled hardening headers apply:
+- `_headers` — Netlify / Cloudflare Pages
+- `vercel.json` — Vercel
+- `.htaccess` — Apache
+
+Those files set real `Content-Security-Policy` (including `frame-ancestors 'none'`), `X-Frame-Options`, `Referrer-Policy`, HSTS, COOP/CORP, and no-cache for `index.html` / `offline.html` / `sw.js`.
+
+**GitHub Pages** ignores `_headers` and `.htaccess`. The in-page CSP meta still locks scripts/connect, and the app best-effort frame-busts, but clickjacking headers cannot be enforced there. For the full privacy/security bar, host elsewhere.
+
+Quick smoke check before deploy:
+
+```bash
+bash scripts/smoke.sh
+```
 
 ---
 

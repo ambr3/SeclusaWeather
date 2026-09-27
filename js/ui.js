@@ -34,31 +34,56 @@ const UI = {
     return this._measureCtx;
   },
 
-  _arcPos(ARC, t) {
-    const seg = ARC.length - 1;
-    const i = Math.max(0, Math.min(seg - 1, Math.floor(t * seg)));
-    const f = Math.max(0, Math.min(1, t * seg - i));
-    const a = ARC[i];
-    const b = ARC[i + 1];
-    return { left: a[0] + (b[0] - a[0]) * f, top: a[1] + (b[1] - a[1]) * f };
-  },
-
-  _arcFor(rise, set, tz) {
+  // Full-orbit position around the Earth disc. Rise = left, noon = top,
+  // set = right, midnight = bottom. Daytime rides the lit (upper) semicircle;
+  // night continues under through the dark side so sun/moon complete a rotation.
+  _orbitFor(rise, set, tz, radius) {
     if (!rise || !set) return null;
     const r = Utils.parseLocal(rise, tz).getTime();
     let s = Utils.parseLocal(set, tz).getTime();
     if (isNaN(r) || isNaN(s)) return null;
     if (s <= r) {
       // Set falls on the next local day — advance by one local day so DST
-      // transitions don't skew the arc (offset delta between the two days).
+      // transitions don't skew the path (offset delta between the two days).
       const offNow = Utils.tzOffsetMs(tz, s);
       const offNext = Utils.tzOffsetMs(tz, s + 24 * 60 * 60 * 1000);
       s += 24 * 60 * 60 * 1000 + (offNow - offNext);
     }
-    const duration = s - r;
-    if (duration > 26 * 60 * 60 * 1000 || duration < 0) return null;
-    const t = (Date.now() - r) / (s - r);
-    return { pos: this._arcPos(this._arc.ARC, Math.max(0, Math.min(1, t))), below: t < 0 || t > 1 };
+    const dayDur = s - r;
+    if (dayDur > 26 * 60 * 60 * 1000 || dayDur <= 0) return null;
+
+    const offRise = Utils.tzOffsetMs(tz, r);
+    const offNext = Utils.tzOffsetMs(tz, r + 24 * 60 * 60 * 1000);
+    const nextRise = r + 24 * 60 * 60 * 1000 + (offRise - offNext);
+    const nightDur = Math.max(1, nextRise - s);
+    const cycle = nextRise - r;
+
+    let now = Date.now();
+    if (now < r) now += Math.ceil((r - now) / cycle) * cycle;
+    if (now >= nextRise) now -= Math.floor((now - r) / cycle) * cycle;
+
+    let angle;
+    let below;
+    if (now <= s) {
+      const f = Math.max(0, Math.min(1, (now - r) / dayDur));
+      angle = Math.PI * (1 - f);
+      below = false;
+    } else {
+      const f = Math.max(0, Math.min(1, (now - s) / nightDur));
+      angle = -Math.PI * f;
+      below = true;
+    }
+
+    const cx = 50;
+    const cy = 50;
+    const rad = radius != null ? radius : 40;
+    return {
+      left: +(cx + rad * Math.cos(angle)).toFixed(2),
+      top: +(cy - rad * Math.sin(angle)).toFixed(2),
+      angle,
+      deg: +((-angle * 180) / Math.PI).toFixed(2),
+      below,
+    };
   },
 
   _hourlyStartIdx(hourly) {
@@ -111,11 +136,12 @@ const UI = {
 
   setUpdatedAt(ts) {
     const el = this.$('lastUpdated');
-    if (!el) return;
+    const current = this.$('currentUpdated');
     if (!Number.isFinite(ts)) {
-      el.classList.add('hidden');
+      if (el) el.classList.add('hidden');
       return;
     }
+    this._dataUpdatedAt = ts;
     const diffMs = Date.now() - ts;
     const mins = Math.floor(diffMs / (60 * 1000));
     const d = new Date(ts);
@@ -125,8 +151,11 @@ const UI = {
     else if (mins < 60) label = `Updated ${mins} min ago`;
     else if (mins < 60 * 24) label = `Last refreshed at ${time}`;
     else label = `Last refreshed ${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} at ${time}`;
-    el.textContent = label;
-    el.classList.remove('hidden');
+    if (el) {
+      el.textContent = label;
+      el.classList.remove('hidden');
+    }
+    if (current) current.textContent = `Updated ${Utils.formatClock(d)}`;
   },
 
   // Values for the "Now" tile/modal slot, preferring the live current-weather
@@ -146,12 +175,14 @@ const UI = {
       humidity: cur.relative_humidity_2m != null ? `${Math.round(cur.relative_humidity_2m)}%` : null,
       wind: cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null,
       windDir: cur.wind_direction_10m != null ? Math.round(cur.wind_direction_10m) : null,
+      gust: cur.wind_gusts_10m != null ? Math.round(cur.wind_gusts_10m) : null,
       precip: cur.precipitation != null ? cur.precipitation : null,
       snow: cur.snowfall != null ? cur.snowfall : null,
       dew: cur.dew_point_2m != null ? Utils.formatTemp(cur.dew_point_2m, units) : null,
       pressure: cur.pressure_msl != null ? Utils.formatPressure(cur.pressure_msl, UI.pressUnit) : null,
       cloud: cur.cloud_cover != null ? `${Math.round(cur.cloud_cover)}%` : null,
       visibility: cur.visibility != null ? Utils.formatVisibility(cur.visibility, UI.visUnit) : null,
+      cape: cur.cape != null ? cur.cape : null,
       code: cur.weather_code != null ? cur.weather_code : null,
       isDay: cur.is_day != null ? cur.is_day : null,
     };
@@ -189,27 +220,21 @@ const UI = {
     if (dayWind) summaryParts.push(`Wind ${dayWind}`);
     const daySummary = summaryParts.length ? summaryParts.join(' · ') : '';
 
-    const ARC = (() => {
-      const pts = [];
-      const n = 64;
-      const inset = 10;
-      const base = 66;
-      const apexY = 24;
-      const rx = 50 - inset;
-      const ry = base - apexY;
-      for (let i = 0; i <= n; i++) {
-        const t = i / n;
-        const th = Math.PI * (1 - t);
-        const x = 50 + rx * Math.cos(th);
-        const y = base - ry * Math.sin(th);
-        pts.push([+x.toFixed(2), +y.toFixed(2)]);
-      }
-      return pts;
-    })();
-    this._arc = { ARC, tz: this._tz, sunrise: d.sunrise && d.sunrise[0], sunset: d.sunset && d.sunset[0], moonrise: d.moonrise && d.moonrise[0], moonset: d.moonset && d.moonset[0] };
+    const SUN_R = 42;
+    const MOON_R = 36;
+    this._arc = {
+      tz: this._tz,
+      sunrise: d.sunrise && d.sunrise[0],
+      sunset: d.sunset && d.sunset[0],
+      moonrise: d.moonrise && d.moonrise[0],
+      moonset: d.moonset && d.moonset[0],
+      sunR: SUN_R,
+      moonR: MOON_R,
+    };
 
-    const sunArc = this._arcFor(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], this._tz);
-    const moonArc = this._arcFor(d.moonrise && d.moonrise[0], d.moonset && d.moonset[0], this._tz);
+    const sunOrb = this._orbitFor(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], this._tz, SUN_R);
+    const moonOrb = this._orbitFor(d.moonrise && d.moonrise[0], d.moonset && d.moonset[0], this._tz, MOON_R);
+    const earthRot = sunOrb ? sunOrb.deg : 0;
 
     this.$('currentWeather').innerHTML = `
       <div class="current-weather__top">
@@ -217,7 +242,7 @@ const UI = {
           <div class="current-weather__location">
             ${this._esc(data._cityName)}<span class="current-weather__country">${this._esc(data._country)}</span>
           </div>
-          <div class="current-weather__desc">${desc}</div>
+          <div class="current-weather__desc">${this._esc(desc)}</div>
         </div>
         <div class="current-weather__icon${c.is_day === 0 ? ' is-night' : ''}">${icon}</div>
       </div>
@@ -227,7 +252,7 @@ const UI = {
       </div>
       <div class="current-weather__meta">
         <div class="current-weather__feels">Feels like ${feels}</div>
-        <div class="current-weather__updated" id="currentUpdated">Updated ${Utils.formatClock(new Date())}</div>
+        <div class="current-weather__updated" id="currentUpdated">Updated ${Utils.formatClock(new Date(Number.isFinite(this._dataUpdatedAt) ? this._dataUpdatedAt : Date.now()))}</div>
       </div>
       <div class="current-weather__celestial">
         <div class="celestial">
@@ -248,16 +273,48 @@ const UI = {
       </div>
       ${phaseRow ? `<div class="current-weather__phase">${phaseRow}</div>` : ''}
       <div class="current-weather__arc" aria-hidden="true">
-        <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <line class="current-weather__arc-horizon" x1="0" y1="66" x2="100" y2="66" vector-effect="non-scaling-stroke"/>
-          <line class="current-weather__arc-noonline" x1="50" y1="24" x2="50" y2="66" vector-effect="non-scaling-stroke"/>
-          <polyline class="current-weather__arc-line" points="${ARC.map((p) => p.join(',')).join(' ')}" vector-effect="non-scaling-stroke"/>
+        <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="earthDayGlow" cx="30%" cy="28%" r="75%">
+              <stop offset="0%" stop-color="#d4efff"/>
+              <stop offset="28%" stop-color="#5bb4ef"/>
+              <stop offset="65%" stop-color="#1a6fbf"/>
+              <stop offset="100%" stop-color="#0a3a6e"/>
+            </radialGradient>
+            <radialGradient id="earthNightGlow" cx="58%" cy="55%" r="75%">
+              <stop offset="0%" stop-color="#1a2744"/>
+              <stop offset="55%" stop-color="#0a101c"/>
+              <stop offset="100%" stop-color="#02050c"/>
+            </radialGradient>
+            <clipPath id="earthClip">
+              <circle cx="50" cy="50" r="26"/>
+            </clipPath>
+          </defs>
+          <circle class="current-weather__orbit current-weather__orbit--sun" cx="50" cy="50" r="${SUN_R}" fill="none"/>
+          <circle class="current-weather__orbit current-weather__orbit--moon" cx="50" cy="50" r="${MOON_R}" fill="none"/>
+          <g class="current-weather__earth" id="earthDisc">
+            <circle cx="50" cy="50" r="27.2" class="current-weather__earth-atm"/>
+            <circle cx="50" cy="50" r="26.6" class="current-weather__earth-rim"/>
+            <g clip-path="url(#earthClip)">
+              <circle cx="50" cy="50" r="26" fill="url(#earthNightGlow)"/>
+              <g id="earthLitHalf" transform="rotate(${earthRot} 50 50)">
+                <path d="M50,24 A26,26 0 0 1 50,76 Z" fill="url(#earthDayGlow)"/>
+                <path d="M50,24 A26,26 0 0 1 50,76 Z" fill="rgba(255,255,255,0.10)"/>
+              </g>
+              <ellipse cx="38" cy="36" rx="9" ry="7" fill="rgba(255,255,255,0.16)"/>
+              <ellipse cx="62" cy="58" rx="10" ry="8" fill="rgba(0,0,0,0.12)"/>
+            </g>
+            <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
+          </g>
+          <text class="current-weather__orbit-mark" x="8" y="52" text-anchor="middle">Rise</text>
+          <text class="current-weather__orbit-mark" x="92" y="52" text-anchor="middle">Set</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="12" text-anchor="middle">Noon</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="96" text-anchor="middle">Night</text>
         </svg>
         <div class="current-weather__arc-label current-weather__arc-label--rise">${sunrise !== '—' ? sunrise : ''}</div>
         <div class="current-weather__arc-label current-weather__arc-label--set">${sunset !== '—' ? sunset : ''}</div>
-        <div class="current-weather__arc-noon">Noon</div>
-        <div class="current-weather__arc-orb current-weather__arc-sun${sunArc && sunArc.below ? ' is-below' : ''}" style="${sunArc ? `left:${sunArc.pos.left}%;top:${sunArc.pos.top}%` : 'display:none'}">${WeatherIcons._sun()}</div>
-        <div class="current-weather__arc-orb current-weather__arc-moon${moonArc && moonArc.below ? ' is-below' : ''}" style="${moonArc ? `left:${moonArc.pos.left}%;top:${moonArc.pos.top}%` : 'display:none'}">${WeatherIcons._moon()}</div>
+        <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}" style="${sunOrb ? `left:${sunOrb.left}%;top:${sunOrb.top}%` : 'display:none'}">${WeatherIcons._sun()}</div>
+        <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}" style="${moonOrb ? `left:${moonOrb.left}%;top:${moonOrb.top}%` : 'display:none'}">${WeatherIcons._moon()}</div>
       </div>
     `;
 
@@ -292,24 +349,24 @@ const UI = {
   },
 
   updateLiveClock() {
-    const updated = this.$('currentUpdated');
-    if (updated) updated.textContent = `Updated ${Utils.formatClock(new Date())}`;
     if (!this._arc) return;
-    const { tz, sunrise, sunset, moonrise, moonset } = this._arc;
-    const sun = this._arcFor(sunrise, sunset, tz);
-    const moon = this._arcFor(moonrise, moonset, tz);
+    const { tz, sunrise, sunset, moonrise, moonset, sunR, moonR } = this._arc;
+    const sun = this._orbitFor(sunrise, sunset, tz, sunR);
+    const moon = this._orbitFor(moonrise, moonset, tz, moonR);
     const sunEl = document.querySelector('.current-weather__arc-sun');
     const moonEl = document.querySelector('.current-weather__arc-moon');
+    const lit = document.getElementById('earthLitHalf');
     if (sunEl && sun) {
-      sunEl.style.left = `${sun.pos.left}%`;
-      sunEl.style.top = `${sun.pos.top}%`;
+      sunEl.style.left = `${sun.left}%`;
+      sunEl.style.top = `${sun.top}%`;
       sunEl.classList.toggle('is-below', sun.below);
     }
     if (moonEl && moon) {
-      moonEl.style.left = `${moon.pos.left}%`;
-      moonEl.style.top = `${moon.pos.top}%`;
+      moonEl.style.left = `${moon.left}%`;
+      moonEl.style.top = `${moon.top}%`;
       moonEl.classList.toggle('is-below', moon.below);
     }
+    if (lit && sun) lit.setAttribute('transform', `rotate(${sun.deg} 50 50)`);
   },
 
   renderDetailBoxes(data, aq, units) {
@@ -455,7 +512,7 @@ const UI = {
 
     const mapBox = `
       <div class="detail-box detail-box--compass" id="compassSection">
-        <div class="detail-box__title">Wind direction</div>
+        <div class="detail-box__title">Wind</div>
         <div class="compass-container" id="compassContainer"></div>
       </div>
     `;
@@ -523,16 +580,25 @@ const UI = {
         </g>`
       : '';
 
+    const safeWind = this._esc(windLabel || 'Wind —');
+    const safeGust = gustLabel ? this._esc(gustLabel) : '';
+    const safeToday = todayWind ? {
+      maxGust: todayWind.maxGust ? this._esc(todayWind.maxGust) : '',
+      maxWind: todayWind.maxWind ? this._esc(todayWind.maxWind) : '',
+      minWind: todayWind.minWind ? this._esc(todayWind.minWind) : '',
+      prevailing: todayWind.prevailing ? this._esc(todayWind.prevailing) : '',
+    } : null;
+
     container.innerHTML = `
       <div class="weather-compass">
         <div class="weather-compass__wind">
           <span class="weather-compass__now-label">Wind now</span>
-          <span class="weather-compass__wind-speed">${windLabel || 'Wind —'}${gustLabel ? `<span class="weather-compass__gust"> &middot; gusts ${gustLabel}</span>` : ''}</span>
-          ${dirDeg != null ? `<span class="weather-compass__wind-dir">blowing ${toDir} &middot; from ${fromDir}</span>` : ''}
+          <span class="weather-compass__wind-speed">${safeWind}${safeGust ? `<span class="weather-compass__gust"> &middot; gusts ${safeGust}</span>` : ''}</span>
+          ${dirDeg != null ? `<span class="weather-compass__wind-dir">blowing ${this._esc(toDir)} &middot; from ${this._esc(fromDir)}</span>` : ''}
         </div>
         <div class="weather-compass__rose">
           <svg viewBox="0 0 100 100" class="weather-compass__svg" role="img"
-               aria-label="${dirDeg != null ? `Wind from ${fromDir}, blowing toward ${toDir}` : 'Wind direction not available'}">
+               aria-label="${dirDeg != null ? this._esc(`Wind from ${fromDir}, blowing toward ${toDir}`) : 'Wind direction not available'}">
             <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="1.5"/>
             <circle cx="50" cy="50" r="37" fill="none" stroke="currentColor" stroke-opacity="0.1" stroke-width="1" stroke-dasharray="2 3"/>
             ${ticks}
@@ -541,13 +607,13 @@ const UI = {
             <circle cx="50" cy="50" r="3.4" fill="currentColor" opacity="0.6"/>
           </svg>
         </div>
-        ${todayWind ? `
+        ${safeToday ? `
         <div class="weather-compass__today" aria-label="Today's wind detail">
           <span class="weather-compass__today-title">Today's wind</span>
-          ${todayWind.maxGust ? `<span class="weather-compass__today-row"><b>Gustiest</b> ${todayWind.maxGust}</span>` : ''}
-          ${todayWind.maxWind ? `<span class="weather-compass__today-row"><b>Strongest</b> ${todayWind.maxWind}</span>` : ''}
-          ${todayWind.minWind ? `<span class="weather-compass__today-row"><b>Calmest</b> ${todayWind.minWind}</span>` : ''}
-          ${todayWind.prevailing ? `<span class="weather-compass__today-row"><b>Prevailing</b> from ${todayWind.prevailing}</span>` : ''}
+          ${safeToday.maxGust ? `<span class="weather-compass__today-row"><b>Gustiest</b> ${safeToday.maxGust}</span>` : ''}
+          ${safeToday.maxWind ? `<span class="weather-compass__today-row"><b>Strongest</b> ${safeToday.maxWind}</span>` : ''}
+          ${safeToday.minWind ? `<span class="weather-compass__today-row"><b>Calmest</b> ${safeToday.minWind}</span>` : ''}
+          ${safeToday.prevailing ? `<span class="weather-compass__today-row"><b>Prevailing</b> from ${safeToday.prevailing}</span>` : ''}
         </div>` : ''}
         <div class="weather-compass__location">
           <div class="weather-compass__city">${cityName}${country ? `<span class="weather-compass__country">${country}</span>` : ''}</div>
@@ -566,12 +632,12 @@ const UI = {
   daytimeMaxPop(dateStr, hourly) {
     if (!hourly || !hourly.time || !hourly.precipitation_probability || !hourly.is_day) return null;
     const prefix = dateStr + 'T';
-    let max = 0;
+    let max = null;
     for (let k = 0; k < hourly.time.length; k++) {
       if (!hourly.time[k].startsWith(prefix)) continue;
       if (hourly.is_day[k] !== 1) continue;
       const p = hourly.precipitation_probability[k];
-      if (p != null && p > max) max = p;
+      if (p != null && (max == null || p > max)) max = p;
     }
     return max;
   },
@@ -609,6 +675,18 @@ const UI = {
     const curPrecip = cur.precipitation != null ? cur.precipitation : 0;
     const curSnow = cur.snowfall != null ? cur.snowfall : 0;
     if (curPrecip > 0 || curSnow > 0 || hourPrecip > 0 || hourSnow > 0) return prob;
+    return null;
+  },
+
+  // Same gate for any hourly slot: probability alone is too noisy when the
+  // hour's precip/snow amounts are zero.
+  _meaningfulHourPop(hourly, idx) {
+    if (!hourly || idx == null || idx < 0) return null;
+    const prob = hourly.precipitation_probability ? hourly.precipitation_probability[idx] : null;
+    if (prob == null || prob <= 0) return null;
+    const precip = hourly.precipitation && hourly.precipitation[idx] != null ? hourly.precipitation[idx] : 0;
+    const snow = hourly.snowfall && hourly.snowfall[idx] != null ? hourly.snowfall[idx] : 0;
+    if (precip > 0 || snow > 0) return prob;
     return null;
   },
 
@@ -662,7 +740,7 @@ const UI = {
           </div>
           <div class="forecast-card__row-icon">${icon}</div>
           <div class="forecast-card__row-info">
-            <span class="forecast-card__row-label">${label}</span>
+            <span class="forecast-card__row-label">${this._esc(label)}</span>
             ${chance}
           </div>
           <div class="forecast-card__row-temps">
@@ -700,6 +778,15 @@ const UI = {
 
     const pagerEl = this.$('forecastCards').querySelector('.forecast-card__pager');
     const pagesEl = this.$('forecastCards').querySelector('.forecast-card__pages');
+    if (pagesEl) {
+      const pageNodes = pagesEl.querySelectorAll('.forecast-card__page');
+      pageNodes.forEach((p) => { p.style.minHeight = ''; });
+      requestAnimationFrame(() => {
+        let maxH = 0;
+        pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
+        if (maxH > 0) pageNodes.forEach((p) => { p.style.minHeight = `${maxH}px`; });
+      });
+    }
     if (pages.length > 1 && pagerEl && pagesEl) {
       const dotsEl = pagerEl.querySelectorAll('.forecast-card__pagerdot');
       const labelEl = pagerEl.querySelector('.forecast-card__pagerlabel');
@@ -763,7 +850,7 @@ const UI = {
         ? Utils.formatTemp(hourly.temperature_2m[idx], units)
         : '—';
       const timeLabel = i === 0 ? 'Now' : Utils.formatHourShort(time, this._tz);
-      let pop = hourly.precipitation_probability ? hourly.precipitation_probability[idx] : null;
+      let pop = i === 0 ? null : this._meaningfulHourPop(hourly, idx);
       let wind = hourly.wind_speed_10m && hourly.wind_speed_10m[idx] != null ? Math.round(hourly.wind_speed_10m[idx]) : null;
       let windDir = hourly.wind_direction_10m && hourly.wind_direction_10m[idx] != null ? Math.round(hourly.wind_direction_10m[idx]) : null;
       let precipNow = hourly.precipitation && hourly.precipitation[idx] != null ? hourly.precipitation[idx] : 0;
@@ -773,7 +860,7 @@ const UI = {
         ? Utils.formatTemp(hourly.apparent_temperature[idx], units)
         : null;
       if (nowVals) {
-        if (nowVals.pop != null) pop = nowVals.pop;
+        pop = nowVals.pop;
         if (nowVals.temp != null) temp = nowVals.temp;
         if (nowVals.feels != null) feelsLike = nowVals.feels;
         if (nowVals.humidity != null) humidity = nowVals.humidity;
@@ -810,7 +897,7 @@ const UI = {
           <div class="hourly-tile__time">${timeLabel}</div>
           <div class="hourly-tile__icon">${icon}</div>
           <div class="hourly-tile__temp">${temp}</div>
-          <div class="hourly-tile__label">${desc}</div>
+          <div class="hourly-tile__label">${this._esc(desc)}</div>
           ${sub ? `<div class="hourly-tile__sub">${sub}</div>` : ''}
         </div>
       `);
@@ -866,33 +953,79 @@ const UI = {
 
     let startX = null, startY = null, dx = 0, dy = 0, peakX = 0, peakY = 0, down = false, axis = null;
 
+    const trackEl = () => modal.querySelector('.hourly-modal__track');
+    const setTrackX = (px, withTransition) => {
+      const track = trackEl();
+      if (!track) return;
+      track.style.transition = withTransition
+        ? 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
+        : 'none';
+      track.style.transform = `translate3d(calc(-33.3333% + ${px}px), 0, 0)`;
+    };
+    const settleTrack = (dir) => {
+      const track = trackEl();
+      if (!track) return;
+      const can = dir < 0 ? this._modalIndex > 0 : this._modalIndex < this._modalCount - 1;
+      if (!can || !dir) {
+        setTrackX(0, true);
+        return;
+      }
+      const target = dir > 0 ? -track.parentElement.clientWidth : track.parentElement.clientWidth;
+      track.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+      track.style.transform = `translate3d(calc(-33.3333% + ${target}px), 0, 0)`;
+      let finished = false;
+      const finish = (e) => {
+        if (finished) return;
+        if (e && e.target && e.target !== track) return;
+        finished = true;
+        track.removeEventListener('transitionend', finish);
+        this._modalIndex += dir;
+        this._modalSlideDir = 0;
+        this._renderHourlyModal();
+      };
+      track.addEventListener('transitionend', finish);
+      setTimeout(() => finish({ target: track }), 450);
+    };
+
     modal.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') return;
-      if (!e.target.closest('.hourly-modal__card')) return;
+      if (!e.target.closest('.hourly-modal__body')) return;
+      if (e.target.closest('button')) return;
       down = true; startX = e.clientX; startY = e.clientY; dx = 0; dy = 0; peakX = 0; peakY = 0; axis = null;
+      setTrackX(0, false);
     });
     modal.addEventListener('pointermove', (e) => {
       if (!down || e.pointerType === 'touch') return;
       dx = e.clientX - startX; dy = e.clientY - startY;
       if (Math.abs(dx) > Math.abs(peakX)) peakX = dx;
       if (Math.abs(dy) > Math.abs(peakY)) peakY = dy;
-      if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-        axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (axis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
       }
-      if (axis === 'x') e.preventDefault();
+      if (axis === 'x') {
+        e.preventDefault();
+        const atStart = this._modalIndex <= 0 && dx > 0;
+        const atEnd = this._modalIndex >= this._modalCount - 1 && dx < 0;
+        const resist = (atStart || atEnd) ? 0.28 : 1;
+        setTrackX(dx * resist, false);
+      }
     });
     modal.addEventListener('pointerup', (e) => {
       if (!down || e.pointerType === 'touch') return;
       down = false;
-      if (axis === 'x' && Math.abs(peakX) > 55) this._navModal(peakX < 0 ? 1 : -1);
+      if (axis === 'x' && Math.abs(peakX) > 48) settleTrack(peakX < 0 ? 1 : -1);
+      else if (axis === 'x') setTrackX(0, true);
+      axis = null;
     });
-    modal.addEventListener('pointercancel', () => { down = false; axis = null; });
+    modal.addEventListener('pointercancel', () => { down = false; axis = null; setTrackX(0, true); });
 
     modal.addEventListener('touchstart', (e) => {
-      if (!e.target.closest('.hourly-modal__card')) return;
+      if (!e.target.closest('.hourly-modal__body')) return;
+      if (e.target.closest('button')) return;
       const t = e.touches[0];
       if (!t) return;
       down = true; startX = t.clientX; startY = t.clientY; dx = 0; dy = 0; peakX = 0; peakY = 0; axis = null;
+      setTrackX(0, false);
     }, { passive: true });
     modal.addEventListener('touchmove', (e) => {
       if (!down) return;
@@ -901,22 +1034,30 @@ const UI = {
       dx = t.clientX - startX; dy = t.clientY - startY;
       if (Math.abs(dx) > Math.abs(peakX)) peakX = dx;
       if (Math.abs(dy) > Math.abs(peakY)) peakY = dy;
-      if (axis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-        axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (axis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
       }
-      if (axis === 'x') e.preventDefault();
+      if (axis === 'x') {
+        e.preventDefault();
+        const atStart = this._modalIndex <= 0 && dx > 0;
+        const atEnd = this._modalIndex >= this._modalCount - 1 && dx < 0;
+        const resist = (atStart || atEnd) ? 0.28 : 1;
+        setTrackX(dx * resist, false);
+      }
     }, { passive: false });
     modal.addEventListener('touchend', () => {
       if (!down) return;
       down = false;
-      if (axis === 'x' && Math.abs(peakX) > 55) this._navModal(peakX < 0 ? 1 : -1);
+      if (axis === 'x' && Math.abs(peakX) > 48) settleTrack(peakX < 0 ? 1 : -1);
+      else if (axis === 'x') setTrackX(0, true);
       axis = null;
     });
-    modal.addEventListener('touchcancel', () => { down = false; axis = null; });
+    modal.addEventListener('touchcancel', () => { down = false; axis = null; setTrackX(0, true); });
 
     this._addModalKeyHandler();
     this._hourlyModalBound = true;
   },
+
 
   _addModalKeyHandler() {
     if (this._modalKeyHandler) return;
@@ -955,11 +1096,31 @@ const UI = {
     if (this._modalIndex == null || this._modalCount == null) return;
     const n = this._modalIndex + dir;
     if (n < 0 || n >= this._modalCount) return;
-    this._modalIndex = n;
-    this._modalSlideDir = dir;
-    this._renderHourlyModal();
+    const modal = this.$('hourlyModal');
+    const track = modal && modal.querySelector('.hourly-modal__track');
+    const viewport = track && track.parentElement;
+    if (!track || !viewport) {
+      this._modalIndex = n;
+      this._modalSlideDir = dir;
+      this._renderHourlyModal();
+      return;
+    }
+    const target = dir > 0 ? -viewport.clientWidth : viewport.clientWidth;
+    track.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)';
+    track.style.transform = `translate3d(calc(-33.3333% + ${target}px), 0, 0)`;
+    let finished = false;
+    const finish = (e) => {
+      if (finished) return;
+      if (e && e.target && e.target !== track) return;
+      finished = true;
+      track.removeEventListener('transitionend', finish);
+      this._modalIndex = n;
+      this._modalSlideDir = 0;
+      this._renderHourlyModal();
+    };
+    track.addEventListener('transitionend', finish);
+    setTimeout(() => finish({ target: track }), 450);
   },
-
 
   closeHourlyDetail() {
     const modal = this.$('hourlyModal');
@@ -975,51 +1136,91 @@ const UI = {
     }
   },
 
-  _renderHourlyModal() {
-    if (this._modalMode === 'forecast') { this._renderForecastModal(); return; }
+  _ensureModalShell(prevLabel, nextLabel) {
     const modal = this.$('hourlyModal');
-    if (!modal || !this._hourly) return;
-    const h = this._hourly;
-    const idx = this._hourlyStart + this._modalIndex;
-    const time = h.time && h.time[idx];
-    if (time == null) { this.closeHourlyDetail(); return; }
+    if (!modal) return null;
+    let card = modal.querySelector('.hourly-modal__card');
+    if (!card) {
+      modal.innerHTML = `
+        <div class="hourly-modal__backdrop"></div>
+        <div class="hourly-modal__card">
+          <button type="button" class="hourly-modal__nav hourly-modal__nav--prev" aria-label="${prevLabel}">&lsaquo;</button>
+          <div class="hourly-modal__body">
+            <div class="hourly-modal__viewport">
+              <div class="hourly-modal__track"></div>
+            </div>
+          </div>
+          <button type="button" class="hourly-modal__close" aria-label="Close">&times;</button>
+          <button type="button" class="hourly-modal__nav hourly-modal__nav--next" aria-label="${nextLabel}">&rsaquo;</button>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+      document.body.classList.add('has-modal');
+    } else {
+      const prev = modal.querySelector('.hourly-modal__nav--prev');
+      const next = modal.querySelector('.hourly-modal__nav--next');
+      if (prev) prev.setAttribute('aria-label', prevLabel);
+      if (next) next.setAttribute('aria-label', nextLabel);
+    }
+    return modal.querySelector('.hourly-modal__track');
+  },
 
+  _statChip(label, value, tint, i) {
+    if (value == null) return '';
+    const safeLabel = this._esc(label);
+    const safeValue = typeof value === 'string' && value.includes('<') ? value : this._esc(value);
+    return `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}" style="--i:${i}"><span class="hourly-modal__stat-label">${safeLabel}</span><span class="hourly-modal__stat-value">${safeValue}</span></div>`;
+  },
+
+  _hourlyPaneHTML(modalIndex) {
+    const h = this._hourly;
+    if (!h || !h.time) return '';
+    const idx = this._hourlyStart + modalIndex;
+    const time = h.time[idx];
+    if (time == null) return '';
     const units = this._modalUnits || 'metric';
-    const nowVals = this._modalIndex === 0 ? this._nowFromCurrent(this._current, h, units) : null;
+    const nowVals = modalIndex === 0 ? this._nowFromCurrent(this._current, h, units) : null;
     const temp = nowVals && nowVals.temp != null ? nowVals.temp : (h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—');
     const tempRaw = nowVals && nowVals.tempRaw != null ? nowVals.tempRaw : (h.temperature_2m && h.temperature_2m[idx]);
     const tempColor = tempRaw != null ? Utils.getTempColor(tempRaw, units) : null;
+    const dewPoint = nowVals && nowVals.dew != null ? nowVals.dew : (h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null);
     const feels = nowVals && nowVals.feels != null ? nowVals.feels : (h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null);
     const feelsRaw = nowVals && nowVals.feelsRaw != null ? nowVals.feelsRaw : (h.apparent_temperature && h.apparent_temperature[idx]);
     const feelsVal = feels != null ? (feelsRaw != null ? `<span style="color:${Utils.getTempColor(feelsRaw, units)}">${feels}</span>` : feels) : null;
-    const dewPoint = nowVals && nowVals.dew != null ? nowVals.dew : (h.dew_point_2m && h.dew_point_2m[idx] != null ? Utils.formatTemp(h.dew_point_2m[idx], units) : null);
-    const pop = nowVals && nowVals.pop != null ? nowVals.pop : (h.precipitation_probability ? h.precipitation_probability[idx] : null);
+    const pop = nowVals && modalIndex === 0 ? nowVals.pop : this._meaningfulHourPop(h, idx);
     const precip = nowVals && nowVals.precip != null ? nowVals.precip : (h.precipitation ? h.precipitation[idx] : 0);
     const snow = nowVals && nowVals.snow != null ? nowVals.snow : (h.snowfall ? h.snowfall[idx] : 0);
     const wind = nowVals && nowVals.wind != null ? nowVals.wind : (h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null);
     const windDir = nowVals && nowVals.windDir != null ? nowVals.windDir : (h.wind_direction_10m && h.wind_direction_10m[idx] != null ? Math.round(h.wind_direction_10m[idx]) : null);
     const humidity = nowVals && nowVals.humidity != null ? nowVals.humidity : (h.relative_humidity_2m && h.relative_humidity_2m[idx] != null ? `${Math.round(h.relative_humidity_2m[idx])}%` : null);
+    const gust = (nowVals && nowVals.gust != null)
+      ? nowVals.gust
+      : (h.wind_gusts_10m && h.wind_gusts_10m[idx] != null ? Math.round(h.wind_gusts_10m[idx]) : null);
     const pressure = nowVals && nowVals.pressure != null ? nowVals.pressure : (h.pressure_msl && h.pressure_msl[idx] != null ? Utils.formatPressure(h.pressure_msl[idx], UI.pressUnit) : null);
     const cloud = nowVals && nowVals.cloud != null ? nowVals.cloud : (h.cloud_cover && h.cloud_cover[idx] != null ? `${Math.round(h.cloud_cover[idx])}%` : null);
     const visibility = nowVals && nowVals.visibility != null ? nowVals.visibility : (h.visibility && h.visibility[idx] != null ? Utils.formatVisibility(h.visibility[idx], UI.visUnit) : null);
+    const solar = Utils.formatSolar(h.shortwave_radiation && h.shortwave_radiation[idx]);
+    const cape = Utils.formatCape(
+      nowVals && nowVals.cape != null ? nowVals.cape : (h.cape && h.cape[idx])
+    );
     const windUnit = Utils.getWindUnit(UI.windUnit);
-    const windVal = wind != null ? `${wind} ${windUnit}${windDir != null ? ` ${Utils.getWindDirection(windDir)}` : ''}` : null;
-
+    const windVal = Utils.formatWind(wind, windDir, UI.windUnit);
     const iconCode = WeatherIcons.adjustForPrecip(nowVals && nowVals.code != null ? nowVals.code : (h.weather_code ? h.weather_code[idx] : null), pop, precip, snow);
     const icon = WeatherIcons.get(iconCode, nowVals && nowVals.isDay != null ? nowVals.isDay : (h.is_day && h.is_day[idx] != null ? h.is_day[idx] : 1));
     const desc = Utils.getWeatherDescription(iconCode);
-
-    const stat = (label, value, tint) => value != null
-      ? `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
-      : '';
-
-    const tLabel = this._modalIndex === 0 ? 'Now' : Utils.formatHourShort(time, this._tz);
+    const clock = Utils.formatTime(time, this._tz);
+    let endClock = clock;
+    try {
+      const end = new Date(Utils.parseLocal(time, this._tz).getTime() + 60 * 60 * 1000);
+      endClock = Utils.formatTime(end, this._tz);
+    } catch { /* keep start clock */ }
+    const tLabel = modalIndex === 0
+      ? `Now · ${Utils.formatClock(new Date())}`
+      : `${clock} – ${endClock}`;
     let dLabel = '';
     const dateKey = String(time).slice(0, 10);
     try {
-      const dtf = new Intl.DateTimeFormat('en-CA', {
-        timeZone: this._tz, year: 'numeric', month: '2-digit', day: '2-digit',
-      });
+      const dtf = new Intl.DateTimeFormat('en-CA', { timeZone: this._tz, year: 'numeric', month: '2-digit', day: '2-digit' });
       const today = dtf.format(new Date());
       const [y, m, d] = today.split('-').map(Number);
       const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
@@ -1029,172 +1230,151 @@ const UI = {
     } catch {
       dLabel = Utils.parseLocal(time, this._tz).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     }
-
-    const creating = modal.classList.contains('hidden') || !modal.querySelector('.hourly-modal__card');
-    let body = modal.querySelector('.hourly-modal__body');
-    if (creating) {
-      modal.innerHTML = `
-        <div class="hourly-modal__backdrop"></div>
-        <div class="hourly-modal__card">
-          <button type="button" class="hourly-modal__nav hourly-modal__nav--prev" aria-label="Previous hour">&lsaquo;</button>
-          <div class="hourly-modal__body"></div>
-          <button type="button" class="hourly-modal__close" aria-label="Close">&times;</button>
-          <button type="button" class="hourly-modal__nav hourly-modal__nav--next" aria-label="Next hour">&rsaquo;</button>
-        </div>
-      `;
-      modal.classList.remove('hidden');
-      document.body.classList.add('has-modal');
-      body = modal.querySelector('.hourly-modal__body');
-    } else if (this._modalSlideDir && body) {
-      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.3s cubic-bezier(0.22, 1, 0.36, 1)`;
-      body.style.animation = 'none';
-      void body.offsetWidth;
-      body.style.animation = anim;
-      this._modalSlideDir = 0;
-    }
-
-    if (body) {
-      body.innerHTML = `
-        <div class="hourly-modal__scrollhint">Scroll up/down for all stats</div>
+    let i = 0;
+    const s = (label, value, tint) => this._statChip(label, value, tint, i++);
+    return `
+      <div class="hourly-modal__pane">
         <div class="hourly-modal__date">${dLabel}</div>
         <div class="hourly-modal__time">${tLabel}</div>
         <div class="hourly-modal__icon">${icon}</div>
         <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${temp}</div>
-        <div class="hourly-modal__desc">${desc}</div>
+        <div class="hourly-modal__desc">${this._esc(desc)}</div>
         <div class="hourly-modal__stats">
-          ${stat('Feels', feelsVal, 'feels')}
-          ${stat('Rain', pop != null ? `${Math.round(pop)}%` : null, 'rain')}
-          ${stat('Precip', Utils.formatPrecip(precip, units), 'precip')}
-          ${stat('Snow', Utils.formatSnow(snow, units), 'snow')}
-          ${stat('Humidity', humidity, 'humidity')}
-          ${stat('Wind', windVal, 'wind')}
-          ${stat('Pressure', pressure, 'pressure')}
-          ${stat('Clouds', cloud, 'clouds')}
-          ${stat('Visibility', visibility, 'visibility')}
-          ${stat('Dew point', dewPoint, 'dew')}
+          ${s('Feels like', feelsVal, 'feels')}
+          ${s('Chance', pop != null ? `${Math.round(pop)}%` : null, 'rain')}
+          ${s('Rainfall', Utils.formatPrecip(precip, units), 'precip')}
+          ${s('Snowfall', Utils.formatSnow(snow, units), 'snow')}
+          ${s('Humidity', humidity, 'humidity')}
+          ${s('Wind', windVal, 'wind')}
+          ${s('Gusts', gust != null ? `${gust} ${windUnit}` : null, 'wind')}
+          ${s('Dew point', dewPoint, 'dew')}
+          ${s('Pressure', pressure, 'pressure')}
+          ${s('Cloud cover', cloud, 'clouds')}
+          ${s('Visibility', visibility, 'visibility')}
+          ${s('Solar', solar, 'sun')}
+          ${s('CAPE', cape, 'uv')}
         </div>
-        <div class="hourly-modal__hint">Swipe or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to browse hours</div>
-      `;
-      body.scrollTop = 0;
-    }
-
-    const focus = modal.querySelector('.hourly-modal__close');
-    if (focus) focus.focus();
+        <div class="hourly-modal__hint">Swipe for more hours</div>
+      </div>`;
   },
 
-  _renderForecastModal() {
-    const modal = this.$('hourlyModal');
-    if (!modal || !this._forecastDaily) return;
+  _forecastPaneHTML(modalIndex) {
     const d = this._forecastDaily;
-    const i = this._modalIndex;
-    const date = d.time && d.time[i];
-    if (date == null) { this.closeHourlyDetail(); return; }
-
+    if (!d || !d.time) return '';
+    const date = d.time[modalIndex];
+    if (date == null) return '';
     const units = this._forecastUnits || 'metric';
-    const high = d.temperature_2m_max && d.temperature_2m_max[i] != null ? Utils.formatTemp(d.temperature_2m_max[i], units) : '—';
-    const low = d.temperature_2m_min && d.temperature_2m_min[i] != null ? Utils.formatTemp(d.temperature_2m_min[i], units) : '—';
-    const feelsHigh = d.apparent_temperature_max && d.apparent_temperature_max[i] != null ? Utils.formatTemp(d.apparent_temperature_max[i], units) : null;
-    const feelsLow = d.apparent_temperature_min && d.apparent_temperature_min[i] != null ? Utils.formatTemp(d.apparent_temperature_min[i], units) : null;
+    const high = d.temperature_2m_max && d.temperature_2m_max[modalIndex] != null ? Utils.formatTemp(d.temperature_2m_max[modalIndex], units) : '—';
+    const low = d.temperature_2m_min && d.temperature_2m_min[modalIndex] != null ? Utils.formatTemp(d.temperature_2m_min[modalIndex], units) : '—';
+    const feelsHigh = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex] != null ? Utils.formatTemp(d.apparent_temperature_max[modalIndex], units) : null;
+    const feelsLow = d.apparent_temperature_min && d.apparent_temperature_min[modalIndex] != null ? Utils.formatTemp(d.apparent_temperature_min[modalIndex], units) : null;
     const pop = this.meaningfulDayPop(date, d, this._forecastHourly) ?? 0;
-    const rainSum = d.rain_sum ? d.rain_sum[i] : null;
-    const snowSum = d.snowfall_sum ? d.snowfall_sum[i] : null;
-    const windMax = d.wind_speed_10m_max && d.wind_speed_10m_max[i] != null ? Math.round(d.wind_speed_10m_max[i]) : null;
-    const gustMax = d.wind_gusts_10m_max && d.wind_gusts_10m_max[i] != null ? Math.round(d.wind_gusts_10m_max[i]) : null;
-    const windDir = d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[i] != null ? Math.round(d.wind_direction_10m_dominant[i]) : null;
-    const uv = d.uv_index_max && d.uv_index_max[i] != null ? d.uv_index_max[i] : null;
-    const uvClear = d.uv_index_clear_sky_max && d.uv_index_clear_sky_max[i] != null ? Math.round(d.uv_index_clear_sky_max[i]) : null;
-    const sunshine = d.sunshine_duration ? d.sunshine_duration[i] : null;
-    const daylight = d.daylight_duration && d.daylight_duration[i] != null ? Utils.formatDuration(d.daylight_duration[i]) : null;
-    const precipHours = d.precipitation_hours && d.precipitation_hours[i] != null ? `${Math.round(d.precipitation_hours[i])}h` : null;
-    const sunrise = d.sunrise && d.sunrise[i] ? Utils.formatTime(d.sunrise[i], this._tz) : null;
-    const sunset = d.sunset && d.sunset[i] ? Utils.formatTime(d.sunset[i], this._tz) : null;
-    const moonPhase = d.moon_phase && d.moon_phase[i] != null ? d.moon_phase[i] : null;
+    const rainSum = d.rain_sum ? d.rain_sum[modalIndex] : null;
+    const snowSum = d.snowfall_sum ? d.snowfall_sum[modalIndex] : null;
+    const uv = d.uv_index_max && d.uv_index_max[modalIndex] != null ? d.uv_index_max[modalIndex] : null;
+    const sunshine = d.sunshine_duration && d.sunshine_duration[modalIndex] != null ? Utils.formatDuration(d.sunshine_duration[modalIndex]) : null;
+    const daylight = d.daylight_duration && d.daylight_duration[modalIndex] != null ? Utils.formatDuration(d.daylight_duration[modalIndex]) : null;
+    const precipHours = d.precipitation_hours && d.precipitation_hours[modalIndex] != null ? `${Math.round(d.precipitation_hours[modalIndex])}h` : null;
+    const windMax = d.wind_speed_10m_max && d.wind_speed_10m_max[modalIndex] != null ? Math.round(d.wind_speed_10m_max[modalIndex]) : null;
+    const gustMax = d.wind_gusts_10m_max && d.wind_gusts_10m_max[modalIndex] != null ? Math.round(d.wind_gusts_10m_max[modalIndex]) : null;
+    const windDir = d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[modalIndex] != null ? Math.round(d.wind_direction_10m_dominant[modalIndex]) : null;
+    const sunrise = d.sunrise && d.sunrise[modalIndex] ? Utils.formatTime(d.sunrise[modalIndex], this._tz) : null;
+    const sunset = d.sunset && d.sunset[modalIndex] ? Utils.formatTime(d.sunset[modalIndex], this._tz) : null;
+    const moonPhase = d.moon_phase && d.moon_phase[modalIndex] != null ? d.moon_phase[modalIndex] : null;
     const moonInfo = moonPhase != null ? `${Utils.getMoonPhaseName(moonPhase)} · ${Utils.getMoonIllumination(moonPhase)}%` : null;
-    const moonrise = d.moonrise && d.moonrise[i] ? Utils.formatTime(d.moonrise[i], this._tz) : null;
-    const moonset = d.moonset && d.moonset[i] ? Utils.formatTime(d.moonset[i], this._tz) : null;
-    const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[i];
+    const moonrise = d.moonrise && d.moonrise[modalIndex] ? Utils.formatTime(d.moonrise[modalIndex], this._tz) : null;
+    const moonset = d.moonset && d.moonset[modalIndex] ? Utils.formatTime(d.moonset[modalIndex], this._tz) : null;
+    const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[modalIndex];
     const tempColor = tempMaxRaw != null ? Utils.getTempColor(tempMaxRaw, units) : null;
-    const dew = date ? this.dayMinMax(date, this._forecastHourly, 'dew_point_2m') : null;
-    const dewVal = dew ? `${Utils.formatTemp(dew.min, units)} / ${Utils.formatTemp(dew.max, units)}` : null;
-
     const iconCode = WeatherIcons.dailyIcon(
-      WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[i],
+      WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[modalIndex],
       pop, rainSum ?? 0, snowSum ?? 0, units
     );
     const icon = WeatherIcons.get(iconCode, true);
     const desc = Utils.getWeatherDescription(iconCode);
     const windUnit = Utils.getWindUnit(UI.windUnit);
     const uvInfo = uv != null ? Utils.getUVLevel(uv) : null;
-    const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[i];
+    const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex];
     const feelsVal = feelsHigh != null && feelsLow != null
       ? (feelsHighRaw != null
           ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${feelsHigh} / ${feelsLow}</span>`
           : `${feelsHigh} / ${feelsLow}`)
       : null;
-
-    const stat = (label, value, tint) => value != null
-      ? `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}"><span class="hourly-modal__stat-label">${label}</span><span class="hourly-modal__stat-value">${value}</span></div>`
-      : '';
-
-    const summaryBits = [];
-    if (desc && high !== '—' && low !== '—') summaryBits.push(`${desc} with a high of ${high} and a low of ${low}.`);
-    else if (desc) summaryBits.push(`${desc}.`);
-    else if (high !== '—' && low !== '—') summaryBits.push(`High ${high} / Low ${low}.`);
-    const summaryExtras = [];
-    if (pop > 0) summaryExtras.push(`${Math.round(pop)}% chance of rain`);
-    else if (rainSum && rainSum > 0) summaryExtras.push(`${Utils.formatPrecip(rainSum, units)} of rain expected`);
-    if (snowSum && snowSum > 0) summaryExtras.push(`${Utils.formatSnow(snowSum, units)} of snow expected`);
-    if (windMax != null) summaryExtras.push(`winds up to ${windMax} ${windUnit}${gustMax != null ? `, gusting ${gustMax} ${windUnit}` : ''}`);
-    if (uv != null && uvInfo) summaryExtras.push(`UV ${Math.round(uv)} (${uvInfo.label.toLowerCase()})`);
-    if (summaryExtras.length) summaryBits.push(summaryExtras.join(', '));
-    const summary = summaryBits.join(' ');
-
+    const windVal = Utils.formatWind(windMax, windDir, UI.windUnit);
+    const gustVal = gustMax != null ? `${gustMax} ${windUnit}` : null;
     const parsed = Utils.parseLocal(date + 'T00:00:00', this._tz);
-    const weekday = i === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
-    const dateHeading = parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, month: 'long', day: 'numeric' });
-    const windVal = windMax != null
-      ? `${windMax} ${windUnit}${gustMax != null ? ` · gusts ${gustMax}` : ''}${windDir != null ? ` ${Utils.getWindDirection(windDir)}` : ''}`
-      : null;
-
-    const creating = modal.classList.contains('hidden') || !modal.querySelector('.hourly-modal__card');
-    let body = modal.querySelector('.hourly-modal__body');
-    if (creating) {
-      modal.innerHTML = `
-        <div class="hourly-modal__backdrop"></div>
-        <div class="hourly-modal__card">
-          <button type="button" class="hourly-modal__nav hourly-modal__nav--prev" aria-label="Previous day">&lsaquo;</button>
-          <div class="hourly-modal__body"></div>
-          <button type="button" class="hourly-modal__close" aria-label="Close">&times;</button>
-          <button type="button" class="hourly-modal__nav hourly-modal__nav--next" aria-label="Next day">&rsaquo;</button>
-        </div>
-      `;
-      modal.classList.remove('hidden');
-      document.body.classList.add('has-modal');
-      body = modal.querySelector('.hourly-modal__body');
-    } else if (this._modalSlideDir && body) {
-      const anim = `${this._modalSlideDir === 1 ? 'hourlyModalInLeft' : 'hourlyModalInRight'} 0.3s cubic-bezier(0.22, 1, 0.36, 1)`;
-      body.style.animation = 'none';
-      void body.offsetWidth;
-      body.style.animation = anim;
-      this._modalSlideDir = 0;
-    }
-
-    if (body) {
-      body.innerHTML = `
+    const weekday = modalIndex === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
+    const dateHeading = parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, month: 'short', day: 'numeric' });
+    let i = 0;
+    const s = (label, value, tint) => this._statChip(label, value, tint, i++);
+    return `
+      <div class="hourly-modal__pane">
         <div class="hourly-modal__date">${weekday}</div>
         <div class="hourly-modal__time">${dateHeading}</div>
         <div class="hourly-modal__icon">${icon}</div>
         <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
-        <div class="hourly-modal__desc">${desc}</div>
-        ${summary ? `<div class="hourly-modal__summary">${summary}</div>` : ''}
-        ${stat('Sun', sunrise && sunset ? `${sunrise} <span class="hourly-modal__stat-arrow">&#8593;</span> / ${sunset} <span class="hourly-modal__stat-arrow">&#8595;</span>` : null, 'sun')}
-        <div class="hourly-modal__hint">Swipe or use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to browse days</div>
-      `;
-      body.scrollTop = 0;
-    }
+        <div class="hourly-modal__desc">${this._esc(desc)}</div>
+        <div class="hourly-modal__stats">
+          ${s('Feels like', feelsVal, 'feels')}
+          ${s('UV index', uv != null && uvInfo ? `${Math.round(uv)} · ${uvInfo.label}` : null, 'uv')}
+          ${s('Chance', pop > 0 ? `${Math.round(pop)}%` : null, 'rain')}
+          ${s('Rainfall', Utils.formatPrecip(rainSum, units), 'precip')}
+          ${s('Snowfall', Utils.formatSnow(snowSum, units), 'snow')}
+          ${s('Wet hours', precipHours, 'precip')}
+          ${s('Max wind', windVal, 'wind')}
+          ${s('Max gusts', gustVal, 'wind')}
+          ${s('Sunrise', sunrise, 'sunrise')}
+          ${s('Sunset', sunset, 'sunset')}
+          ${s('Sunshine', sunshine, 'sunshine')}
+          ${s('Daylight', daylight, 'sun')}
+          ${s('Moon', moonInfo, 'moon')}
+          ${s('Moonrise', moonrise, 'moon')}
+          ${s('Moonset', moonset, 'moon')}
+        </div>
+        <div class="hourly-modal__hint">Swipe for more days</div>
+      </div>`;
+  },
 
-    const focus = modal.querySelector('.hourly-modal__close');
+  _paintModalTrack(paneFn) {
+    const isForecast = this._modalMode === 'forecast';
+    const track = this._ensureModalShell(
+      isForecast ? 'Previous day' : 'Previous hour',
+      isForecast ? 'Next day' : 'Next hour'
+    );
+    if (!track) return;
+    const i = this._modalIndex;
+    const prev = i > 0 ? paneFn.call(this, i - 1) : '<div class="hourly-modal__pane hourly-modal__pane--empty" aria-hidden="true"></div>';
+    const cur = paneFn.call(this, i) || '<div class="hourly-modal__pane"><div class="hourly-modal__desc">No data</div></div>';
+    const next = i < this._modalCount - 1 ? paneFn.call(this, i + 1) : '<div class="hourly-modal__pane hourly-modal__pane--empty" aria-hidden="true"></div>';
+    track.style.transition = 'none';
+    track.style.transform = 'translate3d(-33.3333%, 0, 0)';
+    track.innerHTML = `
+      <div class="hourly-modal__slide">${prev}</div>
+      <div class="hourly-modal__slide">${cur}</div>
+      <div class="hourly-modal__slide">${next}</div>
+    `;
+    // Force layout so translate uses real widths
+    void track.offsetWidth;
+    track.style.transform = 'translate3d(-33.3333%, 0, 0)';
+    const focus = this.$('hourlyModal') && this.$('hourlyModal').querySelector('.hourly-modal__close');
     if (focus) focus.focus();
+  },
+
+  _renderHourlyModal() {
+    if (this._modalMode === 'forecast') { this._renderForecastModal(); return; }
+    const modal = this.$('hourlyModal');
+    if (!modal || !this._hourly) return;
+    const idx = this._hourlyStart + this._modalIndex;
+    if (!this._hourly.time || this._hourly.time[idx] == null) { this.closeHourlyDetail(); return; }
+    this._paintModalTrack(this._hourlyPaneHTML);
+  },
+
+  _renderForecastModal() {
+    const modal = this.$('hourlyModal');
+    if (!modal || !this._forecastDaily) return;
+    const date = this._forecastDaily.time && this._forecastDaily.time[this._modalIndex];
+    if (date == null) { this.closeHourlyDetail(); return; }
+    this._paintModalTrack(this._forecastPaneHTML);
   },
 
   renderHourlyChart(hourly, units) {

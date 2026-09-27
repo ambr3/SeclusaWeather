@@ -42,14 +42,14 @@ const WeatherIcons = {
     return 'clear';
   },
 
-  // Show a rain/snow icon when there is actual precipitation or a high chance
-  // of it, even if the dominant WMO code only describes clouds/clear sky.
+  // Show a rain/snow icon when there is actual precipitation (or snow) with
+  // a meaningful chance — never upgrade clear/cloud icons on probability alone.
   adjustForPrecip(code, pop, precip, snow) {
     const g = this._group(code);
     if (g === 'rain' || g === 'drizzle' || g === 'snow' || g === 'thunder') return code;
-    if (snow > 0 && pop >= 30) return 71;
-    if (precip > 0 && pop >= 30) return 61;
-    if (pop != null && pop >= 50) return 61;
+    const p = pop != null ? pop : 0;
+    if (snow > 0 && p >= 30) return 71;
+    if (precip > 0 && p >= 30) return 61;
     return code;
   },
 

@@ -76,8 +76,31 @@ const Utils = {
 
   getWindDirection(deg) {
     if (deg == null || !isFinite(deg)) return '—';
-    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-    return dirs[Math.round(deg / 45) % 8];
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[Math.round(deg / 22.5) % 16];
+  },
+
+  formatWind(speed, deg, unitCode) {
+    if (speed == null || !isFinite(speed)) return null;
+    const unit = this.getWindUnit(unitCode);
+    const rounded = Math.round(speed);
+    if (deg == null || !isFinite(deg)) return `${rounded} ${unit}`;
+    return `${rounded} ${unit} ${this.getWindDirection(deg)} · ${Math.round(deg)}°`;
+  },
+
+  formatSolar(wm2) {
+    if (wm2 == null || !isFinite(wm2) || wm2 <= 0) return null;
+    return `${Math.round(wm2)} W/m²`;
+  },
+
+  formatCape(cape) {
+    if (cape == null || !isFinite(cape) || cape < 50) return null;
+    const v = Math.round(cape);
+    let level = 'Low';
+    if (cape >= 1000) level = 'Moderate';
+    if (cape >= 2500) level = 'Strong';
+    if (cape >= 4000) level = 'Extreme';
+    return `${v} J/kg · ${level}`;
   },
 
   getWindUnit(code) {
@@ -269,9 +292,74 @@ const Utils = {
   loadWeatherCache() {
     try {
       const raw = localStorage.getItem('weatherCache');
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+      if (!data.weather || typeof data.weather !== 'object' || Array.isArray(data.weather)) return null;
+      if (data.lat != null && !Number.isFinite(Number(data.lat))) return null;
+      if (data.lon != null && !Number.isFinite(Number(data.lon))) return null;
+      return data;
     } catch (err) {
       return null;
     }
+  },
+
+  // Client-side unit conversion for offline unit/wind toggles. Open-Meteo
+  // returns values already converted for the requested units, so a cached
+  // payload must be rescaled when the user changes preference without a fetch.
+  convertWeatherUnits(weather, fromUnits, toUnits, fromWind, toWind) {
+    if (!weather) return weather;
+    const clone = JSON.parse(JSON.stringify(weather));
+    const tempKeys = [
+      'temperature_2m', 'apparent_temperature', 'dew_point_2m',
+      'temperature_2m_max', 'temperature_2m_min',
+      'apparent_temperature_max', 'apparent_temperature_min',
+    ];
+    const precipKeys = ['precipitation', 'precipitation_sum', 'rain_sum'];
+    const snowKeys = ['snowfall', 'snowfall_sum'];
+    const windKeys = [
+      'wind_speed_10m', 'wind_gusts_10m',
+      'wind_speed_10m_max', 'wind_gusts_10m_max',
+    ];
+
+    const mapArr = (obj, key, fn) => {
+      if (!obj || obj[key] == null) return;
+      if (Array.isArray(obj[key])) obj[key] = obj[key].map((v) => (v == null ? v : fn(v)));
+      else obj[key] = fn(obj[key]);
+    };
+
+    const convertTemp = (v) => {
+      if (fromUnits === toUnits) return v;
+      if (fromUnits === 'metric' && toUnits === 'imperial') return v * 9 / 5 + 32;
+      if (fromUnits === 'imperial' && toUnits === 'metric') return (v - 32) * 5 / 9;
+      return v;
+    };
+    const convertPrecip = (v) => {
+      if (fromUnits === toUnits) return v;
+      if (fromUnits === 'metric' && toUnits === 'imperial') return v / 25.4;
+      if (fromUnits === 'imperial' && toUnits === 'metric') return v * 25.4;
+      return v;
+    };
+    const convertSnow = (v) => {
+      if (fromUnits === toUnits) return v;
+      if (fromUnits === 'metric' && toUnits === 'imperial') return v / 2.54;
+      if (fromUnits === 'imperial' && toUnits === 'metric') return v * 2.54;
+      return v;
+    };
+    const toKmh = { kmh: 1, mph: 1.60934, kn: 1.852, ms: 3.6 };
+    const convertWind = (v) => {
+      if (fromWind === toWind) return v;
+      const kmh = v * (toKmh[fromWind] || 1);
+      return kmh / (toKmh[toWind] || 1);
+    };
+
+    const sections = [clone.current, clone.hourly, clone.daily].filter(Boolean);
+    for (const sec of sections) {
+      for (const k of tempKeys) mapArr(sec, k, convertTemp);
+      for (const k of precipKeys) mapArr(sec, k, convertPrecip);
+      for (const k of snowKeys) mapArr(sec, k, convertSnow);
+      for (const k of windKeys) mapArr(sec, k, convertWind);
+    }
+    return clone;
   },
 };

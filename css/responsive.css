@@ -1,6 +1,7 @@
 @media (max-width: 768px) {
   .header {
     padding: 1rem 1.25rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 
   .header__logo h1 {
@@ -12,11 +13,11 @@
   }
 
   .weather-content {
-    padding: 0 1rem 2rem;
+    padding: 0 1rem max(2rem, calc(1.5rem + env(safe-area-inset-bottom)));
   }
 
   .current-weather {
-    padding: 1.5rem;
+    padding: 1.2rem 1.15rem 1.1rem;
   }
 
   .current-weather__top {
@@ -141,7 +142,7 @@
   }
 
   .current-weather__arc {
-    height: 90px;
+    width: min(100%, 240px);
   }
 
   .detail-grid {

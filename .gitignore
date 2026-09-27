@@ -4,3 +4,11 @@ TEST-COMMANDS.md
 
 # Local opencode configuration — not part of the published site.
 .opencode/
+
+# Secrets / local env (none shipped; keep out if added later)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.keystore

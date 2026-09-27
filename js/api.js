@@ -1,4 +1,10 @@
 const API = {
+  _validCoords(lat, lon) {
+    const la = Number(lat);
+    const lo = Number(lon);
+    return Number.isFinite(la) && Number.isFinite(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180;
+  },
+
   async fetchJSON(url) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
@@ -20,7 +26,9 @@ const API = {
   },
 
   async searchCities(query) {
-    const url = `${CONFIG.GEOCODING_BASE}/v1/search?name=${encodeURIComponent(query)}&count=8&language=en&format=json`;
+    const q = String(query || '').trim().slice(0, 80);
+    if (q.length < 2) return [];
+    const url = `${CONFIG.GEOCODING_BASE}/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`;
     const data = await this.fetchJSON(url);
     if (!data.results) return [];
     return data.results.map(r => ({
@@ -30,17 +38,18 @@ const API = {
       country: r.country_code,
       admin1: r.admin1 || '',
       tz: r.timezone,
-    }));
+    })).filter((r) => this._validCoords(r.lat, r.lon) && r.name);
   },
 
   async getWeather(lat, lon, units, windUnit) {
+    if (!this._validCoords(lat, lon)) throw new Error('Invalid location coordinates.');
     const tempUnit = units === 'imperial' ? 'fahrenheit' : 'celsius';
     const precipUnit = units === 'imperial' ? 'inch' : 'mm';
     const days = 14;
     const params = [
       `latitude=${lat}`,
       `longitude=${lon}`,
-      `current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,surface_pressure,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation,visibility,dew_point_2m,cape`,
+      `current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,surface_pressure,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation,snowfall,visibility,dew_point_2m,cape`,
       `hourly=temperature_2m,apparent_temperature,dew_point_2m,weather_code,precipitation_probability,precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m,relative_humidity_2m,cloud_cover,visibility,pressure_msl,cape,shortwave_radiation,is_day`,
       `daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,moonrise,moonset,moon_phase,precipitation_sum,rain_sum,snowfall_sum,precipitation_hours,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max,uv_index_clear_sky_max,sunshine_duration,daylight_duration,shortwave_radiation_sum`,
       `temperature_unit=${tempUnit}`,
@@ -53,6 +62,7 @@ const API = {
   },
 
   async getAirQuality(lat, lon) {
+    if (!this._validCoords(lat, lon)) throw new Error('Invalid location coordinates.');
     const params = [
       `latitude=${lat}`,
       `longitude=${lon}`,

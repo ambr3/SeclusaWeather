@@ -1,5 +1,4 @@
 const CONFIG = {
-  DEFAULT_CITY: 'London',
   DEFAULT_UNITS: 'metric',
   WEATHER_BASE: 'https://api.open-meteo.com',
   AIR_QUALITY_BASE: 'https://air-quality-api.open-meteo.com',
