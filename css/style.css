@@ -1005,69 +1005,71 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
-  margin-bottom: 0.2rem;
+  gap: 1.4rem;
+  margin: 0.35rem 0 0.45rem;
 }
 
 .celestial {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 
 .celestial__title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-text);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  opacity: 0.92;
 }
 
 .celestial__times {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .celestial__row {
   display: flex;
   align-items: baseline;
-  gap: 0.55rem;
+  gap: 0.65rem;
 }
 
 .celestial__label {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  width: 1.7rem;
+  width: 2.1rem;
 }
 
 .celestial__value {
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .celestial-divider {
   width: 1px;
-  height: 2.4rem;
+  height: 3rem;
   background: var(--color-card-border);
 }
 
 .current-weather__phase {
   text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--color-text-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.65rem;
 }
 
 .current-weather__arc {
   position: relative;
-  margin-top: 0.6rem;
-  width: min(100%, 280px);
+  margin-top: 0.4rem;
+  width: min(100%, 360px);
   margin-left: auto;
   margin-right: auto;
   aspect-ratio: 1 / 1;
@@ -1119,36 +1121,48 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 
 .current-weather__orbit-mark {
-  font-size: 3.2px;
-  font-weight: 700;
+  font-size: 4.6px;
+  font-weight: 800;
   fill: currentColor;
-  opacity: 0.55;
-  letter-spacing: 0.04em;
+  opacity: 0.82;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  paint-order: stroke fill;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 0.4px;
 }
 
 .current-weather__orbit-mark--soft {
-  opacity: 0.38;
-  font-size: 2.8px;
+  opacity: 0.7;
+  font-size: 4.2px;
 }
 
 .current-weather__arc-label {
   position: absolute;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted, rgba(255,255,255,0.55));
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-text, #fff);
+  line-height: 1.15;
+  white-space: nowrap;
+  max-width: 6.5rem;
+  z-index: 2;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55), 0 0 10px rgba(0, 0, 0, 0.25);
+  letter-spacing: -0.01em;
 }
 
 .current-weather__arc-label--rise {
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 60%;
+  transform: none;
+  text-align: left;
 }
 
 .current-weather__arc-label--set {
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 60%;
+  transform: none;
+  text-align: right;
 }
 
 .current-weather__arc-orb {
@@ -2253,8 +2267,8 @@ body.has-modal {
   display: flex;
   align-items: stretch;
   gap: 0.25rem;
-  width: min(400px, 94vw);
-  height: auto;
+  width: min(440px, 96vw);
+  height: min(640px, 90dvh);
   max-height: min(90dvh, 90vh);
   background: rgba(15, 40, 90, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -2271,6 +2285,7 @@ body.has-modal {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   padding: 0;
   text-align: center;
   color: #eef2ff;
@@ -2280,6 +2295,7 @@ body.has-modal {
 .hourly-modal__viewport {
   position: relative;
   width: 100%;
+  height: 100%;
   overflow: hidden;
   touch-action: pan-x;
 }
@@ -2287,6 +2303,7 @@ body.has-modal {
 .hourly-modal__track {
   display: flex;
   width: 300%;
+  height: 100%;
   will-change: transform;
   transform: translate3d(-33.3333%, 0, 0);
 }
@@ -2294,21 +2311,47 @@ body.has-modal {
 .hourly-modal__slide {
   flex: 0 0 33.3333%;
   width: 33.3333%;
+  height: 100%;
   box-sizing: border-box;
 }
 
 .hourly-modal__pane {
   padding: 0.85rem 0.7rem 0.65rem;
   box-sizing: border-box;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 0.12rem;
+  overflow: hidden;
 }
 
 .hourly-modal__pane--empty {
   opacity: 0;
-  min-height: 12rem;
+}
+
+.hourly-modal__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  text-align: left;
+  flex: 1 1 auto;
+  align-content: start;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.hourly-modal__hint {
+  margin-top: auto;
+  padding-top: 0.35rem;
+  font-size: 0.68rem;
+  opacity: 0.6;
+  flex-shrink: 0;
 }
 
 .hourly-modal__close {
@@ -2404,19 +2447,20 @@ body.has-modal {
 }
 
 .hourly-modal__summary {
-  margin: 0.6rem auto 0.2rem;
-  max-width: 38ch;
-  font-size: 1.02rem;
-  line-height: 1.5;
+  margin: 0.4rem auto 0.2rem;
+  max-width: 36ch;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.45;
   opacity: 0.95;
-}
-
-.hourly-modal__stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-  margin-top: 0.55rem;
-  text-align: left;
+  color: #eef2ff;
+  text-wrap: pretty;
+  flex-shrink: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 
 .hourly-modal__stat {
@@ -2487,12 +2531,6 @@ body.has-modal {
   display: none;
 }
 
-.hourly-modal__hint {
-  margin-top: 0.45rem;
-  font-size: 0.68rem;
-  opacity: 0.6;
-}
-
 .hourly-modal kbd {
   padding: 0 0.3rem;
   border: 1px solid currentColor;
@@ -2507,6 +2545,7 @@ body.has-modal {
   }
   .hourly-modal__card {
     width: 100%;
+    height: min(680px, 92dvh);
     max-height: min(92dvh, 92vh);
     border-radius: 14px;
     gap: 0.08rem;
@@ -2539,7 +2578,10 @@ body.has-modal {
     font-size: 0.75rem;
   }
   .hourly-modal__summary {
-    display: none;
+    font-size: 0.82rem;
+    max-width: 32ch;
+    margin: 0.3rem auto 0.15rem;
+    font-style: italic;
   }
   .hourly-modal__stats {
     grid-template-columns: repeat(3, 1fr);
@@ -2560,7 +2602,8 @@ body.has-modal {
   }
   .hourly-modal__hint {
     font-size: 0.6rem;
-    margin-top: 0.35rem;
+    margin-top: auto;
+    padding-top: 0.3rem;
   }
   .hourly-modal__close {
     top: 0.4rem;

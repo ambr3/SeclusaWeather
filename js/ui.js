@@ -306,10 +306,10 @@ const UI = {
             </g>
             <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
           </g>
-          <text class="current-weather__orbit-mark" x="8" y="52" text-anchor="middle">Rise</text>
-          <text class="current-weather__orbit-mark" x="92" y="52" text-anchor="middle">Set</text>
-          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="12" text-anchor="middle">Noon</text>
-          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="96" text-anchor="middle">Night</text>
+          <text class="current-weather__orbit-mark" x="8" y="44" text-anchor="middle">Rise</text>
+          <text class="current-weather__orbit-mark" x="92" y="44" text-anchor="middle">Set</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="9" text-anchor="middle">Noon</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="98" text-anchor="middle">Night</text>
         </svg>
         <div class="current-weather__arc-label current-weather__arc-label--rise">${sunrise !== '—' ? sunrise : ''}</div>
         <div class="current-weather__arc-label current-weather__arc-label--set">${sunset !== '—' ? sunset : ''}</div>
@@ -1082,10 +1082,13 @@ const UI = {
   },
 
   openForecastDetail(i) {
-    if (!this._forecastDaily || !this._forecastDaily.time || !this._forecastCount) return;
+    if (!this._forecastDaily || !this._forecastDaily.time) return;
+    const total = Math.min(14, this._forecastDaily.time.length);
+    if (!total) return;
+    this._forecastCount = total;
     this._modalMode = 'forecast';
-    this._modalCount = this._forecastCount;
-    this._modalIndex = Math.max(0, Math.min(this._forecastCount - 1, i));
+    this._modalCount = total;
+    this._modalIndex = Math.max(0, Math.min(total - 1, i));
     this._modalOpen = true;
     this._modalSlideDir = 0;
     this._addModalKeyHandler();
@@ -1170,6 +1173,45 @@ const UI = {
     const safeLabel = this._esc(label);
     const safeValue = typeof value === 'string' && value.includes('<') ? value : this._esc(value);
     return `<div class="hourly-modal__stat${tint ? ` hourly-modal__stat--${tint}` : ''}" style="--i:${i}"><span class="hourly-modal__stat-label">${safeLabel}</span><span class="hourly-modal__stat-value">${safeValue}</span></div>`;
+  },
+
+  // One or two plain-English sentences for the enlarged day pill.
+  _dayStory({ weekday, desc, high, low, pop, rainLabel, snowLabel, sunshine, daylight, sunrise, sunset }) {
+    const dayName = weekday === 'Today' ? 'Today' : weekday;
+    const sky = (desc || 'mixed conditions').toLowerCase();
+    const looksOk = /^(clear sky|mainly clear|partly cloudy|overcast)$/.test(sky);
+    let open;
+    if (high !== '—' && low !== '—') {
+      open = looksOk
+        ? `${dayName} looks ${sky}, warming to ${high} and cooling to ${low}.`
+        : `${dayName} brings ${sky}, warming to ${high} and cooling to ${low}.`;
+    } else if (high !== '—') {
+      open = looksOk
+        ? `${dayName} looks ${sky}, with temperatures near ${high}.`
+        : `${dayName} brings ${sky}, with temperatures near ${high}.`;
+    } else {
+      open = looksOk ? `${dayName} looks ${sky}.` : `${dayName} brings ${sky}.`;
+    }
+
+    const mid = [];
+    if (snowLabel) mid.push(`snowfall around ${snowLabel}`);
+    else if (rainLabel && pop > 0) mid.push(`about a ${Math.round(pop)}% chance of rain (~${rainLabel})`);
+    else if (rainLabel) mid.push(`around ${rainLabel} of rain`);
+    else if (pop > 0) mid.push(`a ${Math.round(pop)}% chance of rain`);
+    if (mid.length) open += ` Expect ${mid.join(' and ')}.`;
+
+    const close = [];
+    if (sunrise && sunset) close.push(`the sun rises at ${sunrise} and sets at ${sunset}`);
+    else if (sunrise) close.push(`sunrise is at ${sunrise}`);
+    else if (sunset) close.push(`sunset is at ${sunset}`);
+    if (sunshine) close.push(`roughly ${sunshine} of sunshine`);
+    else if (daylight) close.push(`${daylight} of daylight`);
+    if (close.length) {
+      open += ` ${close[0].charAt(0).toUpperCase()}${close[0].slice(1)}`;
+      if (close.length > 1) open += `, with ${close.slice(1).join(' and ')}`;
+      open += '.';
+    }
+    return open;
   },
 
   _hourlyPaneHTML(modalIndex) {
@@ -1271,19 +1313,10 @@ const UI = {
     const pop = this.meaningfulDayPop(date, d, this._forecastHourly) ?? 0;
     const rainSum = d.rain_sum ? d.rain_sum[modalIndex] : null;
     const snowSum = d.snowfall_sum ? d.snowfall_sum[modalIndex] : null;
-    const uv = d.uv_index_max && d.uv_index_max[modalIndex] != null ? d.uv_index_max[modalIndex] : null;
     const sunshine = d.sunshine_duration && d.sunshine_duration[modalIndex] != null ? Utils.formatDuration(d.sunshine_duration[modalIndex]) : null;
     const daylight = d.daylight_duration && d.daylight_duration[modalIndex] != null ? Utils.formatDuration(d.daylight_duration[modalIndex]) : null;
-    const precipHours = d.precipitation_hours && d.precipitation_hours[modalIndex] != null ? `${Math.round(d.precipitation_hours[modalIndex])}h` : null;
-    const windMax = d.wind_speed_10m_max && d.wind_speed_10m_max[modalIndex] != null ? Math.round(d.wind_speed_10m_max[modalIndex]) : null;
-    const gustMax = d.wind_gusts_10m_max && d.wind_gusts_10m_max[modalIndex] != null ? Math.round(d.wind_gusts_10m_max[modalIndex]) : null;
-    const windDir = d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[modalIndex] != null ? Math.round(d.wind_direction_10m_dominant[modalIndex]) : null;
     const sunrise = d.sunrise && d.sunrise[modalIndex] ? Utils.formatTime(d.sunrise[modalIndex], this._tz) : null;
     const sunset = d.sunset && d.sunset[modalIndex] ? Utils.formatTime(d.sunset[modalIndex], this._tz) : null;
-    const moonPhase = d.moon_phase && d.moon_phase[modalIndex] != null ? d.moon_phase[modalIndex] : null;
-    const moonInfo = moonPhase != null ? `${Utils.getMoonPhaseName(moonPhase)} · ${Utils.getMoonIllumination(moonPhase)}%` : null;
-    const moonrise = d.moonrise && d.moonrise[modalIndex] ? Utils.formatTime(d.moonrise[modalIndex], this._tz) : null;
-    const moonset = d.moonset && d.moonset[modalIndex] ? Utils.formatTime(d.moonset[modalIndex], this._tz) : null;
     const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[modalIndex];
     const tempColor = tempMaxRaw != null ? Utils.getTempColor(tempMaxRaw, units) : null;
     const iconCode = WeatherIcons.dailyIcon(
@@ -1292,21 +1325,23 @@ const UI = {
     );
     const icon = WeatherIcons.get(iconCode, true);
     const desc = Utils.getWeatherDescription(iconCode);
-    const windUnit = Utils.getWindUnit(UI.windUnit);
-    const uvInfo = uv != null ? Utils.getUVLevel(uv) : null;
     const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex];
     const feelsVal = feelsHigh != null && feelsLow != null
       ? (feelsHighRaw != null
           ? `<span style="color:${Utils.getTempColor(feelsHighRaw, units)}">${feelsHigh} / ${feelsLow}</span>`
           : `${feelsHigh} / ${feelsLow}`)
       : null;
-    const windVal = Utils.formatWind(windMax, windDir, UI.windUnit);
-    const gustVal = gustMax != null ? `${gustMax} ${windUnit}` : null;
     const parsed = Utils.parseLocal(date + 'T00:00:00', this._tz);
     const weekday = modalIndex === 0 ? 'Today' : parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, weekday: 'long' });
     const dateHeading = parsed.toLocaleDateString('en-US', { timeZone: this._tz || undefined, month: 'short', day: 'numeric' });
+    const rainLabel = Utils.formatPrecip(rainSum, units);
+    const snowLabel = Utils.formatSnow(snowSum, units);
+    const summary = this._dayStory({
+      weekday, desc, high, low, pop, rainLabel, snowLabel, sunshine, daylight, sunrise, sunset,
+    });
     let i = 0;
     const s = (label, value, tint) => this._statChip(label, value, tint, i++);
+    const dayHint = `Day ${modalIndex + 1} of ${this._modalCount} · swipe for more days`;
     return `
       <div class="hourly-modal__pane">
         <div class="hourly-modal__date">${weekday}</div>
@@ -1314,24 +1349,18 @@ const UI = {
         <div class="hourly-modal__icon">${icon}</div>
         <div class="hourly-modal__temp"${tempColor ? ` style="color:${tempColor};-webkit-text-fill-color:${tempColor}"` : ''}>${high}<span class="hourly-modal__temp-low"> / ${low}</span></div>
         <div class="hourly-modal__desc">${this._esc(desc)}</div>
+        ${summary ? `<div class="hourly-modal__summary">${this._esc(summary)}</div>` : ''}
         <div class="hourly-modal__stats">
           ${s('Feels like', feelsVal, 'feels')}
-          ${s('UV index', uv != null && uvInfo ? `${Math.round(uv)} · ${uvInfo.label}` : null, 'uv')}
           ${s('Chance', pop > 0 ? `${Math.round(pop)}%` : null, 'rain')}
-          ${s('Rainfall', Utils.formatPrecip(rainSum, units), 'precip')}
-          ${s('Snowfall', Utils.formatSnow(snowSum, units), 'snow')}
-          ${s('Wet hours', precipHours, 'precip')}
-          ${s('Max wind', windVal, 'wind')}
-          ${s('Max gusts', gustVal, 'wind')}
+          ${s('Rainfall', rainLabel, 'precip')}
+          ${s('Snowfall', snowLabel, 'snow')}
           ${s('Sunrise', sunrise, 'sunrise')}
           ${s('Sunset', sunset, 'sunset')}
           ${s('Sunshine', sunshine, 'sunshine')}
           ${s('Daylight', daylight, 'sun')}
-          ${s('Moon', moonInfo, 'moon')}
-          ${s('Moonrise', moonrise, 'moon')}
-          ${s('Moonset', moonset, 'moon')}
         </div>
-        <div class="hourly-modal__hint">Swipe for more days</div>
+        <div class="hourly-modal__hint">${dayHint}</div>
       </div>`;
   },
 
