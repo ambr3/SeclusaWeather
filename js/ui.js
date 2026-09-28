@@ -406,7 +406,7 @@ const UI = {
             </g>
             <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
           </g>
-          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNoon" x="50" y="9" text-anchor="middle">Noon</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNoon" x="50" y="9" text-anchor="middle">Day</text>
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNight" x="50" y="98" text-anchor="middle">Night</text>
         </svg>
         <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}${sunOrb ? '' : ' is-hidden'}">${WeatherIcons._sun()}</div>
@@ -425,7 +425,7 @@ const UI = {
     this.startLiveClock();
   },
 
-  // Night: rotate earth so dark (+stars) is on top; swap Noon/Night labels; mirror orb coords.
+  // Night: rotate earth so dark (+stars) is on top; swap Day/Night labels; mirror orb coords.
   _syncEarthOrientation(isNight) {
     const host = this.$('earthArcSection') || this.$('earthArc');
     if (host) host.classList.toggle('earth-arc--night', !!isNight);
