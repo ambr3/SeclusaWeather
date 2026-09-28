@@ -33,8 +33,8 @@ const UI = {
     return this._measureCtx;
   },
 
-  // Full-orbit around a fixed Earth (day half on top by default; flips at night).
-  // Rise = left, noon = top, set = right, midnight = bottom (coords flip when night).
+  // Full-orbit around Earth. Rise = left, day = top, set = right, night = bottom.
+  // Night only flips the disc paint (dark on top) — orb path direction stays the same.
   _orbitFor(rise, set, tz, radius) {
     if (!rise || !set) return null;
     const r = Utils.parseLocal(rise, tz).getTime();
@@ -452,37 +452,23 @@ const UI = {
 
     this._applyWeatherTheme(iconCode, isDay);
     this._syncEarthOrientation(isDay === 0);
-    this._setOrbPositions(sunOrb, moonOrb, isDay === 0);
+    this._setOrbPositions(sunOrb, moonOrb);
     this.startLiveClock();
   },
 
-  // Night: rotate earth so dark (+stars) is on top; swap Day/Night labels; mirror orb coords.
+  // Night: rotate disc paint so dark (+stars) is on top. Orbit marks and orb
+  // coords stay fixed (day top / night bottom) so sun & moon keep the same path.
   _syncEarthOrientation(isNight) {
     const host = this.$('earthArcSection') || this.$('earthArc');
     if (host) host.classList.toggle('earth-arc--night', !!isNight);
     const hemi = document.getElementById('earthHemispheres');
     if (hemi) hemi.setAttribute('transform', isNight ? 'rotate(180 50 50)' : '');
-    const noon = document.getElementById('orbitMarkNoon');
-    const night = document.getElementById('orbitMarkNight');
-    if (noon) noon.setAttribute('y', isNight ? '98' : '9');
-    if (night) night.setAttribute('y', isNight ? '9' : '98');
   },
 
-  _setOrbPositions(sun, moon, isNight) {
-    const flip = (o) => {
-      if (!o) return null;
-      if (!isNight) return o;
-      return {
-        ...o,
-        left: +(100 - o.left).toFixed(2),
-        top: +(100 - o.top).toFixed(2),
-      };
-    };
-    const s = flip(sun);
-    const m = flip(moon);
+  _setOrbPositions(sun, moon) {
     const parts = [];
-    if (s) parts.push(`--sun-x:${s.left}%`, `--sun-y:${s.top}%`);
-    if (m) parts.push(`--moon-x:${m.left}%`, `--moon-y:${m.top}%`);
+    if (sun) parts.push(`--sun-x:${sun.left}%`, `--sun-y:${sun.top}%`);
+    if (moon) parts.push(`--moon-x:${moon.left}%`, `--moon-y:${moon.top}%`);
     if (parts.length) Utils.dynCSS.set('orbs', `:root{${parts.join(';')}}`);
   },
 
@@ -511,7 +497,7 @@ const UI = {
     } else if (moonEl) {
       moonEl.classList.add('is-hidden');
     }
-    this._setOrbPositions(sun, moon, !!(sun && sun.below));
+    this._setOrbPositions(sun, moon);
     this._syncEarthOrientation(!!(sun && sun.below));
     // Flip day/night theme when the sun crosses the horizon.
     if (sun && weatherCode != null) {
