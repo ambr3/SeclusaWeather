@@ -36,10 +36,10 @@ Keeps your weather your own. Seclusa Weather is a **pure static, open-source wea
 
 ### 🌡️ Forecast
 - **Current conditions** — temperature, feels-like, humidity, pressure, wind, precipitation, UV, visibility
-- **Hourly forecast** — scrollable 24h / all-day view with a multi-metric chart
-  *(Temp & Dew · Rain · Sun strength)*
+- **Hourly forecast** — day-paged vertical hour list (swipe days L/R like forecast) with a multi-metric chart
+  *(Temp & Dew · Rain · Solar)*
 - **Daily forecast** — 7-day or 14-day cards with a toggle
-- **Sunrise/sunset arc** — a live SVG that shows the sun *and* moon arcing across your sky
+- **Sunrise/sunset arc** — a live SVG that shows the sun *and* moon arcing around Earth (flips at night so dark is on top, with subtle stars)
 - **Auto-refresh** — once you've loaded a forecast, it silently stays fresh every 30 minutes
 
 ### 🌍 Air & Environment
@@ -54,7 +54,7 @@ Keeps your weather your own. Seclusa Weather is a **pure static, open-source wea
 ### 🎨 Interface
 - **Dark / light themes** with dynamic weather backgrounds at sunrise, rain, snow, thunder, fog, and night
 - **Metric / imperial toggle** — saved between visits
-- **Touch-friendly 24h / all-hours hourly list** — tap any hour (or any forecast day) for full details
+- **Touch-friendly day-paged hourly list** — tap any hour (or any forecast day) for full details
 - Smooth fade-in animations, fully responsive
 
 ---

@@ -55,6 +55,21 @@ const WeatherIcons = {
     return code;
   },
 
+  // Hourly / current: never show a rain/snow icon when that slot has zero
+  // precip amount — Open-Meteo often keeps a wet WMO code with 0.0 mm, which
+  // would fight the day outlook and the gated rain %. Mirrors dailyIcon's
+  // "amount required" rule; thunder/fog keep their codes.
+  hourIcon(code, pop, precip, snow) {
+    const g = this._group(code);
+    const rain = precip != null ? precip : 0;
+    const sn = snow != null ? snow : 0;
+    if ((g === 'rain' || g === 'drizzle' || g === 'snow') && rain <= 0 && sn <= 0) {
+      // Prefer overcast over "partly cloudy" when demoting a wet WMO code.
+      return 3;
+    }
+    return this.adjustForPrecip(code, pop, rain, sn);
+  },
+
   // Daily forecast: the day's WMO code can be rain/drizzle even when only a
   // brief spell occurred. Never show a precip icon unless the chance AND the
   // amount justify it; otherwise fall back to a partly-cloudy look.

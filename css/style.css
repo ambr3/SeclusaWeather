@@ -199,7 +199,8 @@ body.theme-dark.theme-mist { --color-bg-start: #31406a; --color-bg-end: #3a4a75;
   .weather-content--stagger > .forecast-section,
   .weather-content--stagger > .hourly-section,
   .weather-content--stagger > .detail-section,
-  .weather-content--stagger > .earth-arc {
+  .weather-content--stagger > .wind-section,
+  .weather-content--stagger > .earth-section {
     animation: none !important;
     opacity: 1;
     transform: none;
@@ -861,7 +862,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 .weather-content--stagger > .forecast-section,
 .weather-content--stagger > .hourly-section,
 .weather-content--stagger > .detail-section,
-.weather-content--stagger > .earth-arc {
+.weather-content--stagger > .wind-section,
+.weather-content--stagger > .earth-section {
   animation: fadeSlideIn 0.45s ease both;
 }
 
@@ -869,7 +871,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 .weather-content--stagger > .forecast-section { animation-delay: 70ms; }
 .weather-content--stagger > .hourly-section { animation-delay: 140ms; }
 .weather-content--stagger > .detail-section { animation-delay: 210ms; }
-.weather-content--stagger > .earth-arc { animation-delay: 280ms; }
+.weather-content--stagger > .wind-section { animation-delay: 250ms; }
+.weather-content--stagger > .earth-section { animation-delay: 290ms; }
 
 .section-title {
   font-family: var(--font-heading);
@@ -898,7 +901,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.4rem;
 }
 
 .section-head .section-title {
@@ -1180,26 +1183,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   overflow: hidden;
 }
 
-.earth-arc.hidden {
-  display: none;
-}
-
-.earth-arc__head {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.25rem 0.75rem;
-  margin-bottom: 0.35rem;
-}
-
-.earth-arc__title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-muted);
+.earth-section {
+  margin-bottom: 1.25rem;
 }
 
 .earth-arc .current-weather__arc {
@@ -1266,13 +1251,27 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   opacity: 0.65;
 }
 
+.current-weather__earth-glow {
+  filter: blur(1.2px);
+}
+
 .current-weather__earth-atm {
-  fill: rgba(120, 190, 255, 0.22);
+  fill: rgba(140, 200, 255, 0.32);
+  filter: drop-shadow(0 0 2.2px rgba(130, 200, 255, 0.55));
 }
 
 .current-weather__earth-edge {
-  stroke: rgba(220, 240, 255, 0.45);
-  stroke-width: 0.7;
+  stroke: rgba(210, 235, 255, 0.7);
+  stroke-width: 0.85;
+  filter: drop-shadow(0 0 1.6px rgba(160, 215, 255, 0.55));
+}
+
+.earth-arc--night .current-weather__earth-glow {
+  fill: rgba(90, 130, 220, 0.22);
+}
+
+.earth-arc--night .current-weather__earth-atm {
+  fill: rgba(100, 140, 220, 0.28);
 }
 
 
@@ -1356,7 +1355,20 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 /* Detail Grid */
 .detail-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.wind-section {
+  margin-bottom: 1.25rem;
+}
+
+.wind-card {
+  width: 100%;
+}
+
+.detail-box--compass .compass-container {
+  width: 100%;
+  margin: 0;
 }
 
 .detail-grid {
@@ -1385,7 +1397,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 }
 
 .detail-box--conditions {
-  grid-column: 1 / span 3;
+  grid-column: 1 / -1;
 }
 
 .conditions-grid {
@@ -1496,6 +1508,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 /* Shared press + hover affordances on interactive tiles */
 .hourly-tile:active,
+.hourly-card__row:active,
+.hourly-card__cell:active,
 .forecast-card__row:active,
 .conditions-item--press:active,
 .hourly-chart__mode:active {
@@ -1521,11 +1535,24 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
+  .hourly-card__row:hover,
+  .hourly-card__cell:hover {
+    background: var(--color-card-hover);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
   .forecast-card__row--today:hover {
     background: linear-gradient(90deg, rgba(255, 209, 102, 0.28), rgba(255, 255, 255, 0.08) 55%);
     box-shadow:
       inset 4px 0 0 var(--color-accent),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .hourly-card__row--now:hover {
+    background: linear-gradient(105deg, rgba(255, 209, 102, 0.34), rgba(255, 255, 255, 0.09));
+    box-shadow:
+      inset 2.5px 0 0 var(--color-accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
   .conditions-item--press:hover {
@@ -1565,14 +1592,6 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 .conditions-item--wide .detail-box__chip {
   font-size: 0.8rem;
   padding: 0.22rem 0.6rem;
-}
-
-.detail-box--compass {
-  grid-column: 1 / span 3;
-}
-
-.detail-box--compass .detail-box__title {
-  padding: 0 0.4rem 0.4rem;
 }
 
 .detail-box--compass .compass-container {
@@ -1847,20 +1866,12 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   overflow: hidden;
 }
 
-.hourly-chart__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.45rem;
+.hourly-chart-head {
+  margin-top: 1.25rem;
 }
 
-.hourly-chart__title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-muted);
+.forecast-section {
+  margin-bottom: 1.25rem;
 }
 
 .hourly-chart__modes {
@@ -2011,72 +2022,176 @@ body.theme-dark .hourly-chart__modes {
   background: #38BDF8;
 }
 
-/* Hourly — one combined card, scrolls horizontally with a swipe hint */
+/* Hourly — compact 2-col grid, swipe days L/R */
 .hourly-section {
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
 }
 
 .hourly-scroll {
   display: block;
 }
 
-.hourly-card--hscroll {
-  position: relative;
-  overflow: hidden;
-  background: var(--color-card);
-  border: 1px solid var(--color-card-border);
-  border-radius: var(--radius);
-  margin-bottom: 0.6rem;
-  backdrop-filter: blur(var(--blur));
-  box-shadow: var(--shadow), 0 8px 22px -14px rgba(0, 0, 0, 0.45);
-  animation: fadeSlideIn 0.5s ease 0.15s both;
+.hourly-scroll .forecast-card {
+  margin-bottom: 0;
 }
 
-.hourly-card__strip {
-  display: flex;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-card-border) transparent;
-  padding-bottom: 0.4rem;
+.hourly-card__page {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  box-sizing: border-box;
+  height: var(--hourly-page-h, auto);
+  min-height: var(--hourly-page-h, auto);
+  padding: 0.3rem 0.35rem 0.35rem;
 }
 
-.hourly-card__strip::-webkit-scrollbar {
-  height: 5px;
+.hourly-card__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.18rem 0.22rem;
+  align-content: start;
 }
 
-.hourly-card__strip::-webkit-scrollbar-thumb {
-  background: var(--color-card-border);
-  border-radius: 50px;
-}
-
-/* Fade the leading/trailing edges so more hours are obviously waiting */
-.hourly-card--overflow .hourly-card__strip {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
-  scroll-snap-type: x mandatory;
-  scroll-padding-inline: 0.5rem;
-}
-
-.hourly-tile__day {
-  align-self: stretch;
-  display: flex;
+.hourly-card__cell {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
-  flex: 0 0 auto;
-  padding: 0 1rem;
-  font-size: 0.68rem;
+  gap: 0.28rem;
+  min-height: 2.35rem;
+  padding: 0.24rem 0.32rem 0.24rem 0.26rem;
+  border-radius: 9px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background 0.15s, transform 0.12s, box-shadow 0.15s, border-color 0.15s;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.hourly-card__row--empty {
+  visibility: hidden;
+  pointer-events: none;
+  cursor: default;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.hourly-card__cell-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.hourly-card__cell-icon svg {
+  width: 100%;
+  height: 100%;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
+}
+
+.hourly-card__cell-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.hourly-card__cell-time {
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
   color: var(--color-text-muted);
-  border-left: 1px solid var(--color-card-border);
+  text-transform: uppercase;
+}
+
+.hourly-card__cell-vals {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.hourly-card__cell-temp {
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.hourly-card__cell-rain {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #7dd3fc;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.hourly-tile__day:first-child {
-  border-left: none;
+.hourly-card__row--now {
+  background: linear-gradient(105deg, rgba(255, 209, 102, 0.28), rgba(255, 255, 255, 0.07));
+  box-shadow: inset 2.5px 0 0 var(--color-accent);
+  border-color: rgba(255, 209, 102, 0.32);
 }
+
+.hourly-card__row--now .hourly-card__cell-time {
+  color: var(--color-accent);
+  font-weight: 800;
+}
+
+.hourly-card__row--past {
+  opacity: 0.42;
+}
+
+.hourly-card__row--past .hourly-card__cell-icon {
+  filter: grayscale(0.4);
+}
+
+.hourly-card__pager.forecast-card__pager {
+  padding: 0.38rem 0.5rem 0.48rem;
+}
+
+.forecast-card__pager--stack {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+}
+
+.forecast-card__pagerdots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.05rem 0;
+}
+
+.forecast-card__pager--stack .forecast-card__pagerlabel {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  max-width: 100%;
+  margin-left: 0;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+}
+
+.forecast-card__pagertap {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+  padding: 0 0.25rem;
+}
+
+/* Legacy tile styles kept for theme hooks */
 
 .hourly-tile {
   flex: 0 0 auto;
@@ -2198,7 +2313,7 @@ body.theme-dark .hourly-chart__modes {
 /* Forecast — single card, days listed vertically */
 .forecast-cards {
   display: block;
-  margin-bottom: 1.8rem;
+  margin-bottom: 0;
 }
 
 .forecast-card {

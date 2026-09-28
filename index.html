@@ -20,8 +20,8 @@
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-192.svg">
 
-  <link rel="stylesheet" href="css/style.css?v=0.6.0">
-  <link rel="stylesheet" href="css/responsive.css?v=0.6.0">
+  <link rel="stylesheet" href="css/style.css?v=0.6.1">
+  <link rel="stylesheet" href="css/responsive.css?v=0.6.1">
   <link rel="preconnect" href="https://api.open-meteo.com">
   <link rel="preconnect" href="https://air-quality-api.open-meteo.com">
   <link rel="preconnect" href="https://geocoding-api.open-meteo.com">
@@ -229,27 +229,43 @@
       <section class="hourly-section">
         <div class="section-head">
           <h2 class="section-title">Hourly Forecast</h2>
-          <div class="segmented" role="tablist" aria-label="Hourly range">
-            <button type="button" class="segmented__btn is-active" id="h24Btn" role="tab" aria-selected="true">24h</button>
-            <button type="button" class="segmented__btn" id="hAllBtn" role="tab" aria-selected="false">All</button>
-          </div>
         </div>
         <div class="hourly-scroll" id="hourlyScroll" role="list"></div>
+        <div class="section-head hourly-chart-head hidden" id="hourlyChartHead">
+          <h2 class="section-title" id="hourlyChartTitle">Graphs</h2>
+        </div>
         <div class="hourly-chart hidden" id="hourlyChart" role="region" aria-roledescription="chart" aria-label="Hourly chart — swipe or use arrow keys to change metric"></div>
       </section>
 
+      <section class="detail-section hidden" id="detailSection">
+        <div class="section-head">
+          <h2 class="section-title">Details</h2>
+        </div>
+        <div id="detailGrid" aria-label="Weather details"></div>
+      </section>
 
+      <section class="wind-section hidden" id="windSection">
+        <div class="section-head">
+          <h2 class="section-title">Wind</h2>
+        </div>
+        <div class="detail-box detail-box--compass wind-card" id="compassSection">
+          <div class="compass-container" id="compassContainer"></div>
+        </div>
+      </section>
 
-      <section class="detail-section hidden" id="detailGrid" aria-label="Weather details"></section>
-
-      <section class="earth-arc hidden" id="earthArc" aria-label="Sun and moon path"></section>
+      <section class="earth-section hidden" id="earthArcSection">
+        <div class="section-head">
+          <h2 class="section-title">Sun &amp; Moon</h2>
+        </div>
+        <div class="earth-arc" id="earthArc" aria-label="Sun and moon path"></div>
+      </section>
 
     </div>
   </main>
 
   <footer class="footer">
     <p>
-      Seclusa Weather v0.6.0 &mdash; No tracking. No ads. No cookies.
+      Seclusa Weather v0.6.1 &mdash; No tracking. No ads. No cookies.
       <br>
       Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a> &mdash; <a href="https://open-meteo.com/license" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
       <br>
@@ -266,11 +282,11 @@
 
   <div class="hourly-modal hidden" id="hourlyModal" role="dialog" aria-modal="true" aria-label="Forecast details"></div>
 
-  <script src="js/config.js?v=0.6.0"></script>
-  <script src="js/utils.js?v=0.6.0"></script>
-  <script src="js/icons.js?v=0.6.0"></script>
-  <script src="js/api.js?v=0.6.0"></script>
-  <script src="js/ui.js?v=0.6.0"></script>
-  <script src="js/app.js?v=0.6.0"></script>
+  <script src="js/config.js?v=0.6.1"></script>
+  <script src="js/utils.js?v=0.6.1"></script>
+  <script src="js/icons.js?v=0.6.1"></script>
+  <script src="js/api.js?v=0.6.1"></script>
+  <script src="js/ui.js?v=0.6.1"></script>
+  <script src="js/app.js?v=0.6.1"></script>
 </body>
 </html>

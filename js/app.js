@@ -3,7 +3,6 @@ const App = {
   windUnit: Utils.safeGet('windUnit', null) || (Utils.safeGet('units', null) === 'imperial' ? 'mph' : 'kmh'),
   visUnit: Utils.safeGet('visUnit', null) || 'km',
   pressUnit: (Utils.safeGet('pressUnit', null) === 'inHg' ? 'inHg' : 'hPa'),
-  hourlyAll: Utils.safeGet('hourlyAll', '') === '1',
   chartMode: Utils.safeGet('chartMode', 'temp') || 'temp',
   lastCity: Utils.safeGet('lastCity', null),
   lastCountry: Utils.safeGet('lastCountry', '') || '',
@@ -103,10 +102,6 @@ const App = {
       this.toggleUnitsMenu();
     });
 
-    this.$('h24Btn').addEventListener('click', () => this.setHourlyRange(false));
-    this.$('hAllBtn').addEventListener('click', () => this.setHourlyRange(true));
-    this.updateHourlyTabs();
-    UI.setHourlyRange(this.hourlyAll);
     UI.setChartMode(this.chartMode);
 
     this.$('locationBtn').addEventListener('click', () => this.useLocation());
@@ -129,7 +124,7 @@ const App = {
 
     this.$('clearDataBtn').addEventListener('click', async () => {
       if (!window.confirm('Erase all local data and cached forecasts?')) return;
-      const keys = ['units', 'windUnit', 'visUnit', 'pressUnit', 'hourlyAll', 'chartMode', 'dynamicText', 'theme', 'lastCity', 'lastCountry', 'lastLat', 'lastLon', 'weatherCache'];
+      const keys = ['units', 'windUnit', 'visUnit', 'pressUnit', 'chartMode', 'dynamicText', 'theme', 'lastCity', 'lastCountry', 'lastLat', 'lastLon', 'weatherCache', 'hourlyAll'];
       keys.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
       if (window.caches) {
         try {
@@ -560,28 +555,6 @@ const App = {
     } else if (this.lastCity) {
       this.searchCity(this.lastCity).catch((e) => { console.debug('Background load failed:', e); });
     }
-  },
-
-  setHourlyRange(all) {
-    if (this.hourlyAll === all) return;
-    this.hourlyAll = all;
-    Utils.safeSet('hourlyAll', all ? '1' : '');
-    this.updateHourlyTabs();
-    UI.setHourlyRange(all);
-    if (this._last && this._last.weather) {
-      UI.renderHourly(this._last.weather.hourly, this.units);
-      UI.renderHourlyChart(this._last.weather.hourly, this.units);
-    }
-  },
-
-  updateHourlyTabs() {
-    const btn24 = this.$('h24Btn');
-    const btnAll = this.$('hAllBtn');
-    if (!btn24 || !btnAll) return;
-    btn24.classList.toggle('is-active', !this.hourlyAll);
-    btnAll.classList.toggle('is-active', this.hourlyAll);
-    btn24.setAttribute('aria-selected', String(!this.hourlyAll));
-    btnAll.setAttribute('aria-selected', String(this.hourlyAll));
   },
 
   async loadWeather(lat, lon, name, country, cityKey, opts) {

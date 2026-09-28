@@ -1,7 +1,6 @@
 const UI = {
   $: (id) => document.getElementById(id),
 
-  _hourlyAll: false,
   _chartMode: 'temp',
   _measureCanvas: null,
   _measureCtx: null,
@@ -34,8 +33,8 @@ const UI = {
     return this._measureCtx;
   },
 
-  // Full-orbit around a fixed Earth (day = top, night = bottom).
-  // Rise = left, noon = top, set = right, midnight = bottom.
+  // Full-orbit around a fixed Earth (day half on top by default; flips at night).
+  // Rise = left, noon = top, set = right, midnight = bottom (coords flip when night).
   _orbitFor(rise, set, tz, radius) {
     if (!rise || !set) return null;
     const r = Utils.parseLocal(rise, tz).getTime();
@@ -131,19 +130,14 @@ const UI = {
     return hourly.time.length;
   },
 
-  setHourlyRange(all) {
-    this._hourlyAll = all;
-  },
-
   showLoading() {
     this.$('loading').classList.remove('hidden');
     this.$('errorMessage').classList.add('hidden');
     this.$('weatherContent').classList.add('hidden');
+    const arcSec = this.$('earthArcSection');
     const arc = this.$('earthArc');
-    if (arc) {
-      arc.classList.add('hidden');
-      arc.innerHTML = '';
-    }
+    if (arcSec) arcSec.classList.add('hidden');
+    if (arc) arc.innerHTML = '';
   },
 
   hideLoading() {
@@ -153,11 +147,10 @@ const UI = {
   showError(msg) {
     this.hideLoading();
     this.$('weatherContent').classList.add('hidden');
+    const arcSec = this.$('earthArcSection');
     const arc = this.$('earthArc');
-    if (arc) {
-      arc.classList.add('hidden');
-      arc.innerHTML = '';
-    }
+    if (arcSec) arcSec.classList.add('hidden');
+    if (arc) arc.innerHTML = '';
     const el = this.$('errorMessage');
     el.textContent = msg;
     el.classList.remove('hidden');
@@ -240,8 +233,10 @@ const UI = {
     const d = data.daily || {};
     const nowStartIdx = this._hourlyStartIdx(data.hourly);
     const nowPop = this._meaningfulNowPop(c, data.hourly, nowStartIdx);
-    const dayPop = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
-    const iconCode = WeatherIcons.adjustForPrecip(c.weather_code, nowPop, c.precipitation ?? 0, c.snowfall ?? 0);
+    const todayKey = (d.time && d.time[0]) ? d.time[0] : this._todayDateKey();
+    const outlook = this.dayOutlook(todayKey, d, data.hourly, units);
+    const dayPop = outlook ? outlook.pop : null;
+    const iconCode = WeatherIcons.hourIcon(c.weather_code, nowPop, c.precipitation ?? 0, c.snowfall ?? 0);
     const temp = Utils.formatTemp(c.temperature_2m, units);
     const feels = Utils.formatTemp(c.apparent_temperature, units);
     const desc = Utils.getWeatherDescription(iconCode);
@@ -361,12 +356,10 @@ const UI = {
     ].join('');
 
     const arcHost = this.$('earthArc');
+    const arcSec = this.$('earthArcSection');
     if (arcHost) {
-      arcHost.classList.remove('hidden');
+      if (arcSec) arcSec.classList.remove('hidden');
       arcHost.innerHTML = `
-      <div class="earth-arc__head">
-        <span class="earth-arc__title">Sun &amp; Moon</span>
-      </div>
       <div class="current-weather__arc" aria-hidden="true">
         <svg class="current-weather__arc-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -388,11 +381,24 @@ const UI = {
           <circle class="current-weather__orbit current-weather__orbit--sun" cx="50" cy="50" r="${SUN_R}" fill="none"/>
           <circle class="current-weather__orbit current-weather__orbit--moon" cx="50" cy="50" r="${MOON_R}" fill="none"/>
           <g class="current-weather__earth" id="earthDisc">
+            <circle cx="50" cy="50" r="28.4" class="current-weather__earth-glow" fill="rgba(110,190,255,0.18)"/>
             <circle cx="50" cy="50" r="27.2" class="current-weather__earth-atm"/>
             <circle cx="50" cy="50" r="26.6" class="current-weather__earth-rim"/>
-            <g clip-path="url(#earthClip)">
+            <!-- Day half on top by default; rotate 180° at night so dark (+stars) is on top. -->
+            <g id="earthHemispheres" clip-path="url(#earthClip)">
               <circle cx="50" cy="50" r="26" fill="url(#earthNightGlow)"/>
-              <!-- Day = top half, night = bottom. Earth stays fixed; sun/moon orbit around it. -->
+              <g id="earthStars" class="current-weather__earth-stars">
+                <circle cx="30" cy="62" r="0.42" fill="#fff" opacity="0.75"/>
+                <circle cx="38" cy="70" r="0.32" fill="#fff" opacity="0.55"/>
+                <circle cx="46" cy="58" r="0.28" fill="#fff" opacity="0.45"/>
+                <circle cx="54" cy="74" r="0.38" fill="#fff" opacity="0.7"/>
+                <circle cx="62" cy="64" r="0.3" fill="#fff" opacity="0.5"/>
+                <circle cx="70" cy="72" r="0.35" fill="#fff" opacity="0.65"/>
+                <circle cx="34" cy="78" r="0.25" fill="#fff" opacity="0.4"/>
+                <circle cx="58" cy="82" r="0.28" fill="#fff" opacity="0.48"/>
+                <circle cx="42" cy="86" r="0.22" fill="#fff" opacity="0.35"/>
+                <circle cx="66" cy="56" r="0.26" fill="#fff" opacity="0.42"/>
+              </g>
               <g id="earthLitHalf">
                 <path d="M24,50 A26,26 0 0 1 76,50 Z" fill="url(#earthDayGlow)"/>
                 <path d="M24,50 A26,26 0 0 1 76,50 Z" fill="rgba(255,255,255,0.10)"/>
@@ -400,10 +406,8 @@ const UI = {
             </g>
             <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
           </g>
-          <text class="current-weather__orbit-mark" x="8" y="44" text-anchor="middle">Rise</text>
-          <text class="current-weather__orbit-mark" x="92" y="44" text-anchor="middle">Set</text>
-          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="9" text-anchor="middle">Noon</text>
-          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" x="50" y="98" text-anchor="middle">Night</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNoon" x="50" y="9" text-anchor="middle">Noon</text>
+          <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNight" x="50" y="98" text-anchor="middle">Night</text>
         </svg>
         <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}${sunOrb ? '' : ' is-hidden'}">${WeatherIcons._sun()}</div>
         <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}${moonOrb ? '' : ' is-hidden'}">${WeatherIcons._moon()}</div>
@@ -416,14 +420,38 @@ const UI = {
     }
 
     this._applyWeatherTheme(iconCode, isDay);
-    this._setOrbPositions(sunOrb, moonOrb);
+    this._syncEarthOrientation(isDay === 0);
+    this._setOrbPositions(sunOrb, moonOrb, isDay === 0);
     this.startLiveClock();
   },
 
-  _setOrbPositions(sun, moon) {
+  // Night: rotate earth so dark (+stars) is on top; swap Noon/Night labels; mirror orb coords.
+  _syncEarthOrientation(isNight) {
+    const host = this.$('earthArcSection') || this.$('earthArc');
+    if (host) host.classList.toggle('earth-arc--night', !!isNight);
+    const hemi = document.getElementById('earthHemispheres');
+    if (hemi) hemi.setAttribute('transform', isNight ? 'rotate(180 50 50)' : '');
+    const noon = document.getElementById('orbitMarkNoon');
+    const night = document.getElementById('orbitMarkNight');
+    if (noon) noon.setAttribute('y', isNight ? '98' : '9');
+    if (night) night.setAttribute('y', isNight ? '9' : '98');
+  },
+
+  _setOrbPositions(sun, moon, isNight) {
+    const flip = (o) => {
+      if (!o) return null;
+      if (!isNight) return o;
+      return {
+        ...o,
+        left: +(100 - o.left).toFixed(2),
+        top: +(100 - o.top).toFixed(2),
+      };
+    };
+    const s = flip(sun);
+    const m = flip(moon);
     const parts = [];
-    if (sun) parts.push(`--sun-x:${sun.left}%`, `--sun-y:${sun.top}%`);
-    if (moon) parts.push(`--moon-x:${moon.left}%`, `--moon-y:${moon.top}%`);
+    if (s) parts.push(`--sun-x:${s.left}%`, `--sun-y:${s.top}%`);
+    if (m) parts.push(`--moon-x:${m.left}%`, `--moon-y:${m.top}%`);
     if (parts.length) Utils.dynCSS.set('orbs', `:root{${parts.join(';')}}`);
   },
 
@@ -452,7 +480,8 @@ const UI = {
     } else if (moonEl) {
       moonEl.classList.add('is-hidden');
     }
-    this._setOrbPositions(sun, moon);
+    this._setOrbPositions(sun, moon, !!(sun && sun.below));
+    this._syncEarthOrientation(!!(sun && sun.below));
     // Flip day/night theme when the sun crosses the horizon.
     if (sun && weatherCode != null) {
       const isDay = sun.below ? 0 : 1;
@@ -481,7 +510,9 @@ const UI = {
     const boxes = [];
 
     const precipNow = Utils.formatPrecip(c.precipitation, units) || (units === 'imperial' ? '0 in' : '0 mm');
-    const popToday = (d.time && d.time[0]) ? this.meaningfulDayPop(d.time[0], d, data.hourly) : null;
+    const popToday = (d.time && d.time[0])
+      ? (this.dayOutlook(d.time[0], d, data.hourly, units)?.pop ?? null)
+      : null;
     const rainToday = d.rain_sum && d.rain_sum[0] != null ? Math.round(d.rain_sum[0] * 10) / 10 : null;
     const snowToday = d.snowfall_sum && d.snowfall_sum[0] != null ? d.snowfall_sum[0] : null;
     const precipSub = [];
@@ -599,7 +630,6 @@ const UI = {
 
     boxes.push(`
       <div class="detail-box detail-box--conditions">
-        <div class="detail-box__title">Conditions</div>
         <div class="conditions-grid">
           ${conditionsGrid}
           ${aqiBlock}
@@ -608,16 +638,14 @@ const UI = {
       </div>
     `);
 
-    const mapBox = `
-      <div class="detail-box detail-box--compass" id="compassSection">
-        <div class="detail-box__title">Wind</div>
-        <div class="compass-container" id="compassContainer"></div>
-      </div>
-    `;
-
-    boxes.push(mapBox);
     container.innerHTML = `<div class="detail-grid">${boxes.join('')}</div>`;
+    const detailSec = this.$('detailSection');
+    if (detailSec) detailSec.classList.remove('hidden');
     container.classList.remove('hidden');
+    const windSec = this.$('windSection');
+    if (windSec) windSec.classList.remove('hidden');
+    const compassSec = this.$('compassSection');
+    if (compassSec) compassSec.classList.remove('hidden');
 
     const pressBox = document.getElementById('pressureBox');
     if (pressBox) {
@@ -635,8 +663,10 @@ const UI = {
   renderWindCompass(lat, lon, windLabel, windDir, gustLabel, todayWind) {
     const container = this.$('compassContainer');
     const section = this.$('compassSection');
+    const windSec = this.$('windSection');
     if (!container || !section) return;
 
+    if (windSec) windSec.classList.remove('hidden');
     section.classList.remove('hidden');
 
     const cityName = UI._compassCityName ? this._esc(UI._compassCityName) : '';
@@ -722,7 +752,9 @@ const UI = {
 
   hideCompass() {
     const section = this.$('compassSection');
+    const windSec = this.$('windSection');
     if (section) section.classList.add('hidden');
+    if (windSec) windSec.classList.add('hidden');
   },
 
   // Max precipitation probability across daytime hours (is_day === 1) for a date.
@@ -787,6 +819,36 @@ const UI = {
     return null;
   },
 
+  // Unified day outlook (icon + rain %) — summary, forecast rows, and forecast
+  // modal all read from this so Open-Meteo daily/hourly never disagree.
+  dayOutlook(dateStr, daily, hourly, units) {
+    if (!daily || !daily.time || dateStr == null) return null;
+    const idx = daily.time.indexOf(String(dateStr));
+    if (idx < 0) return null;
+    const pop = this.meaningfulDayPop(dateStr, daily, hourly);
+    const rainSum = daily.rain_sum && daily.rain_sum[idx] != null ? daily.rain_sum[idx] : 0;
+    const snowSum = daily.snowfall_sum && daily.snowfall_sum[idx] != null ? daily.snowfall_sum[idx] : 0;
+    const raw = WeatherIcons.dominantDayCode(dateStr, hourly, pop ?? 0, rainSum, snowSum, units)
+      ?? daily.weather_code[idx];
+    let iconCode = WeatherIcons.dailyIcon(raw, pop ?? 0, rainSum, snowSum, units);
+
+    // Today while it's wet now: don't paint a dry day icon beside a wet summary.
+    if (String(dateStr) === this._todayDateKey() && this._current) {
+      const c = this._current;
+      const nowIdx = this._hourlyStartIdx(hourly);
+      const nowPop = this._meaningfulNowPop(c, hourly, nowIdx);
+      const nowIcon = WeatherIcons.hourIcon(
+        c.weather_code, nowPop, c.precipitation ?? 0, c.snowfall ?? 0
+      );
+      const wet = (g) => g === 'drizzle' || g === 'rain' || g === 'snow' || g === 'thunder';
+      if (wet(WeatherIcons._group(nowIcon)) && !wet(WeatherIcons._group(iconCode))) {
+        iconCode = nowIcon;
+      }
+    }
+
+    return { idx, pop, rainSum, snowSum, iconCode };
+  },
+
   // Min/max across the 24 hours of a date for a given hourly key (e.g. dew point).
   dayMinMax(dateStr, hourly, key) {
     if (!hourly || !hourly.time || !hourly[key]) return null;
@@ -816,11 +878,9 @@ const UI = {
     const rowMarkup = (date, i) => {
       const max = daily.temperature_2m_max && daily.temperature_2m_max[i] != null ? Math.round(daily.temperature_2m_max[i]) : '—';
       const min = daily.temperature_2m_min && daily.temperature_2m_min[i] != null ? Math.round(daily.temperature_2m_min[i]) : '—';
-      const pop = this.meaningfulDayPop(date, daily, hourly) ?? 0;
-      const rainSum = daily.rain_sum ? daily.rain_sum[i] : null;
-      const snowSum = daily.snowfall_sum ? daily.snowfall_sum[i] : null;
-      const weatherCode = WeatherIcons.dominantDayCode(date, hourly, pop, rainSum, snowSum, units) ?? daily.weather_code[i];
-      const iconCode = WeatherIcons.dailyIcon(weatherCode, pop, rainSum, snowSum, units);
+      const outlook = this.dayOutlook(date, daily, hourly, units);
+      const pop = outlook && outlook.pop != null ? outlook.pop : 0;
+      const iconCode = outlook ? outlook.iconCode : (daily.weather_code ? daily.weather_code[i] : 0);
       const icon = WeatherIcons.get(iconCode, true);
 
       const d = Utils.parseLocal(date + 'T00:00:00', this._tz);
@@ -861,14 +921,14 @@ const UI = {
     this.$('forecastCards').innerHTML = `
       <div class="forecast-card forecast-card--pager">
         <div class="forecast-card__pages" role="list">${pages.join('')}</div>
-        <div class="forecast-card__pager" role="tablist" aria-label="Forecast days">
-          ${dots}
+        <div class="forecast-card__pager forecast-card__pager--stack" role="tablist" aria-label="Forecast days">
+          <div class="forecast-card__pagerdots">${dots}</div>
           <span class="forecast-card__pagerlabel">
             <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
-            <span class="forecast-card__pagerlead">Swipe to see</span>
+            <span class="forecast-card__pagerlead">Swipe</span>
             <span class="forecast-card__pagerrange">days 1–7</span>
-            <span class="forecast-card__pagerlead forecast-card__pagerlead--tap">· tap any day to enlarge for more info</span>
           </span>
+          <span class="forecast-card__pagertap">Tap any day for more info</span>
         </div>
       </div>
     `;
@@ -911,12 +971,7 @@ const UI = {
   renderHourly(hourly, units) {
     if (!hourly || !hourly.time || !hourly.time.length) return;
     if (this._modalOpen) this.closeHourlyDetail();
-    const startIdx = this._hourlyStartIdx(hourly);
-    const windUnit = Utils.getWindUnit(UI.windUnit);
-    const count = this._hourlyAll ? hourly.time.length - startIdx : 24;
-    this._hourly = hourly;
-    this._hourlyStart = startIdx;
-    this._hourlyCount = Math.min(Math.max(count, 0), Math.max(0, hourly.time.length - startIdx));
+    const nowIdx = this._hourlyStartIdx(hourly);
     this._modalUnits = units;
 
     let todayKey = null;
@@ -938,86 +993,182 @@ const UI = {
       tomorrowKey = advanceDay(todayKey);
     }
 
-    let prevKey = '';
-    const parts = [];
-    hourly.time.slice(startIdx, startIdx + count).forEach((time, i) => {
-      const idx = startIdx + i;
-      const nowVals = i === 0 ? this._nowFromCurrent(this._current, hourly, units) : null;
-      let temp = hourly.temperature_2m && hourly.temperature_2m[idx] != null
-        ? Utils.formatTemp(hourly.temperature_2m[idx], units)
-        : '—';
-      const timeLabel = i === 0 ? 'Now' : Utils.formatHourShort(time, this._tz);
-      let pop = i === 0 ? null : this._meaningfulHourPop(hourly, idx);
-      let wind = hourly.wind_speed_10m && hourly.wind_speed_10m[idx] != null ? Math.round(hourly.wind_speed_10m[idx]) : null;
-      let windDir = hourly.wind_direction_10m && hourly.wind_direction_10m[idx] != null ? Math.round(hourly.wind_direction_10m[idx]) : null;
+    // Full calendar day for Today (00:00→23:00) so the pill isn't half-empty.
+    let listStart = nowIdx;
+    for (let i = 0; i < hourly.time.length; i++) {
+      if (String(hourly.time[i]).slice(0, 10) === todayKey) {
+        listStart = i;
+        break;
+      }
+    }
+    this._hourly = hourly;
+    this._hourlyStart = listStart;
+    this._hourlyCount = Math.max(0, hourly.time.length - listStart);
+    this._hourlyNowIdx = nowIdx;
+
+    const dayGroups = [];
+    let cur = null;
+    for (let idx = listStart; idx < hourly.time.length; idx++) {
+      const dateKey = String(hourly.time[idx]).slice(0, 10);
+      if (!cur || cur.key !== dateKey) {
+        cur = { key: dateKey, indices: [] };
+        dayGroups.push(cur);
+      }
+      cur.indices.push(idx);
+    }
+
+    const dayLabelFor = (dateKey) => {
+      if (dateKey === todayKey) return 'Today';
+      if (dateKey === tomorrowKey) return 'Tomorrow';
+      return Utils.parseLocal(dateKey + 'T00:00:00', this._tz)
+        .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+
+    const rowFor = (idx) => {
+      const time = hourly.time[idx];
+      const isNow = idx === nowIdx;
+      const isPast = idx < nowIdx;
+      const nowVals = isNow ? this._nowFromCurrent(this._current, hourly, units) : null;
+      let tempRaw = hourly.temperature_2m && hourly.temperature_2m[idx] != null
+        ? hourly.temperature_2m[idx]
+        : null;
+      let temp = tempRaw != null ? `${Math.round(tempRaw)}°` : '—';
+      const timeLabel = isNow ? 'Now' : Utils.formatHourShort(time, this._tz);
+      let pop = isNow ? null : this._meaningfulHourPop(hourly, idx);
       let precipNow = hourly.precipitation && hourly.precipitation[idx] != null ? hourly.precipitation[idx] : 0;
       let snowNow = hourly.snowfall && hourly.snowfall[idx] != null ? hourly.snowfall[idx] : 0;
-      let humidity = hourly.relative_humidity_2m && hourly.relative_humidity_2m[idx] != null ? `${Math.round(hourly.relative_humidity_2m[idx])}%` : '';
-      let feelsLike = hourly.apparent_temperature && hourly.apparent_temperature[idx] != null
-        ? Utils.formatTemp(hourly.apparent_temperature[idx], units)
-        : null;
       if (nowVals) {
         pop = nowVals.pop;
-        if (nowVals.temp != null) temp = nowVals.temp;
-        if (nowVals.feels != null) feelsLike = nowVals.feels;
-        if (nowVals.humidity != null) humidity = nowVals.humidity;
-        if (nowVals.wind != null) wind = nowVals.wind;
-        if (nowVals.windDir != null) windDir = nowVals.windDir;
+        if (nowVals.tempRaw != null) {
+          tempRaw = nowVals.tempRaw;
+          temp = `${Math.round(tempRaw)}°`;
+        } else if (nowVals.temp != null) {
+          temp = String(nowVals.temp).replace(/\s/g, '');
+        }
         if (nowVals.precip != null) precipNow = nowVals.precip;
         if (nowVals.snow != null) snowNow = nowVals.snow;
       }
-      const iconCode = WeatherIcons.adjustForPrecip(nowVals && nowVals.code != null ? nowVals.code : hourly.weather_code[idx], pop, precipNow, snowNow);
-      const icon = WeatherIcons.get(iconCode, nowVals && nowVals.isDay != null ? nowVals.isDay : (hourly.is_day && hourly.is_day[idx] != null ? hourly.is_day[idx] : 1));
-      const desc = Utils.getWeatherDescription(iconCode);
-      const windDirLabel = windDir != null ? Utils.getWindDirection(windDir) : '';
-
-      const dateKey = time.slice(0, 10);
-      if (i === 0 || dateKey !== prevKey) {
-        let dateLabel;
-        if (dateKey === todayKey) dateLabel = 'Today';
-        else if (dateKey === tomorrowKey) dateLabel = 'Tomorrow';
-        else dateLabel = Utils.parseLocal(time, this._tz)
-          .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        parts.push(`<div class="hourly-tile__day">${dateLabel}</div>`);
-      }
-      prevKey = dateKey;
-
-      const subParts = [];
-      if (feelsLike) subParts.push(`Feels ${feelsLike}`);
-      if (pop != null && pop > 0) subParts.push(`${Math.round(pop)}% rain`);
-      if (wind != null) subParts.push(`Wind ${wind} ${windUnit}${windDirLabel ? ' ' + windDirLabel : ''}`);
-      if (humidity) subParts.push(`Humidity ${humidity}`);
-      const sub = subParts.slice(0, 2).join(' · ');
-
-      parts.push(`
-        <div class="hourly-tile${i === 0 ? ' hourly-tile--now' : ''}" role="listitem" data-i="${i}">
-          <div class="hourly-tile__time">${timeLabel}</div>
-          <div class="hourly-tile__icon">${icon}</div>
-          <div class="hourly-tile__temp">${temp}</div>
-          <div class="hourly-tile__label">${this._esc(desc)}</div>
-          ${sub ? `<div class="hourly-tile__sub">${sub}</div>` : ''}
+      const iconCode = WeatherIcons.hourIcon(
+        nowVals && nowVals.code != null ? nowVals.code : hourly.weather_code[idx],
+        pop, precipNow, snowNow
+      );
+      const icon = WeatherIcons.get(
+        iconCode,
+        nowVals && nowVals.isDay != null ? nowVals.isDay
+          : (hourly.is_day && hourly.is_day[idx] != null ? hourly.is_day[idx] : 1)
+      );
+      const rain = pop != null && pop > 0 ? `${Math.round(pop)}%` : '';
+      const modalI = idx - listStart;
+      const rowClass = isNow ? ' hourly-card__row--now' : (isPast ? ' hourly-card__row--past' : '');
+      return `
+        <div class="hourly-card__cell hourly-card__row${rowClass}"
+             role="listitem" data-i="${modalI}">
+          <span class="hourly-card__cell-icon">${icon}</span>
+          <span class="hourly-card__cell-meta">
+            <span class="hourly-card__cell-time">${timeLabel}</span>
+            <span class="hourly-card__cell-vals">
+              <span class="hourly-card__cell-temp">${temp}</span>
+              ${rain ? `<span class="hourly-card__cell-rain">${rain}</span>` : ''}
+            </span>
+          </span>
         </div>
-      `);
+      `;
+    };
+
+    const hoursPerPage = Math.max(24, ...dayGroups.map((g) => g.indices.length));
+    const emptyCell = () => `
+      <div class="hourly-card__cell hourly-card__row hourly-card__row--empty" aria-hidden="true">
+        <span class="hourly-card__cell-icon"></span>
+        <span class="hourly-card__cell-meta">
+          <span class="hourly-card__cell-time">&nbsp;</span>
+          <span class="hourly-card__cell-vals">
+            <span class="hourly-card__cell-temp">&nbsp;</span>
+          </span>
+        </span>
+      </div>`;
+
+    const pages = dayGroups.map((g) => {
+      const cells = g.indices.map((idx) => rowFor(idx));
+      while (cells.length < hoursPerPage) cells.push(emptyCell());
+      return `<div class="hourly-card__page" role="group" aria-label="${this._esc(dayLabelFor(g.key))}"><div class="hourly-card__grid" role="list">${cells.join('')}</div></div>`;
     });
 
-    const tilesHtml = parts.join('');
+    const pageCount = pages.length;
+    const dots = pageCount > 1
+      ? Array.from({ length: pageCount }, (_, p) =>
+        `<button type="button" class="forecast-card__pagerdot${p === 0 ? ' is-active' : ''}" data-page="${p}"
+          aria-label="${this._esc(dayLabelFor(dayGroups[p].key))}"></button>`
+      ).join('')
+      : '';
+
     this.$('hourlyScroll').innerHTML = `
-      <div class="hourly-card hourly-card--hscroll" role="list">
-        <div class="hourly-card__strip">${tilesHtml}</div>
-        <div class="hourly-card__hint" id="hourlyHint"><svg class="hourly-card__hinticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg><span>Swipe to see more hours · Tap any hour to enlarge for more info</span></div>
+      <div class="hourly-card forecast-card forecast-card--pager" role="list">
+        <div class="hourly-card__pages forecast-card__pages">${pages.join('')}</div>
+        ${pageCount > 1 ? `
+        <div class="hourly-card__pager forecast-card__pager forecast-card__pager--stack" role="tablist" aria-label="Hourly days">
+          <div class="forecast-card__pagerdots">${dots}</div>
+          <span class="forecast-card__pagerlabel">
+            <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
+            <span class="forecast-card__pagerlead">Swipe</span>
+            <span class="forecast-card__pagerrange">${this._esc(dayLabelFor(dayGroups[1] ? dayGroups[1].key : dayGroups[0].key))}</span>
+          </span>
+          <span class="forecast-card__pagertap">Tap any hour for more info</span>
+        </div>` : ''}
       </div>
     `;
 
-    this._updateHourlyScroll();
+    const pagesEl = this.$('hourlyScroll').querySelector('.hourly-card__pages');
+    const pagerEl = this.$('hourlyScroll').querySelector('.hourly-card__pager');
+    if (pagesEl) {
+      const syncPageH = () => {
+        const pageNodes = pagesEl.querySelectorAll('.hourly-card__page');
+        let maxH = 0;
+        Utils.dynCSS.del('hourly-h');
+        pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
+        if (maxH > 0) {
+          Utils.dynCSS.set('hourly-h',
+            `:root{--hourly-page-h:${maxH}px}.hourly-card__pages{height:var(--hourly-page-h)}`);
+        }
+      };
+      requestAnimationFrame(() => requestAnimationFrame(syncPageH));
+    }
+    if (pagesEl && pagerEl && pageCount > 1) {
+      const dotsEl = pagerEl.querySelectorAll('.forecast-card__pagerdot');
+      const labelEl = pagerEl.querySelector('.forecast-card__pagerlabel');
+      const rangeEl = pagerEl.querySelector('.forecast-card__pagerrange');
+      const syncDots = () => {
+        const page = Math.round(pagesEl.scrollLeft / pagesEl.clientWidth) || 0;
+        dotsEl.forEach((dot, p) => dot.classList.toggle('is-active', p === page));
+        if (labelEl) labelEl.classList.toggle('is-back', page > 0);
+        if (rangeEl) {
+          const next = dayGroups[page === 0 ? 1 : page - 1] || dayGroups[page];
+          rangeEl.textContent = next ? dayLabelFor(next.key) : 'next day';
+        }
+      };
+      pagesEl.addEventListener('scroll', syncDots, { passive: true });
+      pagerEl.addEventListener('click', (e) => {
+        const dot = e.target.closest('.forecast-card__pagerdot');
+        if (!dot) return;
+        const page = parseInt(dot.dataset.page, 10) || 0;
+        pagesEl.scrollTo({ left: page * pagesEl.clientWidth, behavior: 'smooth' });
+      });
+      syncDots();
+    }
+
     if (!this._hourlyModalBound) this._bindHourlyModal();
   },
 
   _updateHourlyScroll() {
-    const strip = document.querySelector('.hourly-card__strip');
-    const card = strip && strip.closest('.hourly-card--hscroll');
-    if (!strip) return;
-    const overflow = strip.scrollWidth > strip.clientWidth + 1;
-    card.classList.toggle('hourly-card--overflow', overflow);
+    const pagesEl = this.$('hourlyScroll') && this.$('hourlyScroll').querySelector('.hourly-card__pages');
+    if (!pagesEl) return;
+    const pageNodes = pagesEl.querySelectorAll('.hourly-card__page');
+    let maxH = 0;
+    Utils.dynCSS.del('hourly-h');
+    pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
+    if (maxH > 0) {
+      Utils.dynCSS.set('hourly-h',
+        `:root{--hourly-page-h:${maxH}px}.hourly-card__pages{height:var(--hourly-page-h)}`);
+    }
   },
 
   _bindHourlyModal() {
@@ -1026,7 +1177,7 @@ const UI = {
     if (!scroll || !modal) return;
 
     scroll.addEventListener('click', (e) => {
-      const card = e.target.closest('.hourly-tile');
+      const card = e.target.closest('.hourly-card__row');
       if (card && !this._modalOpen) this.openHourlyDetail(parseInt(card.dataset.i, 10) || 0);
     });
 
@@ -1381,7 +1532,9 @@ const UI = {
     const time = h.time[idx];
     if (time == null) return '';
     const units = this._modalUnits || 'metric';
-    const nowVals = modalIndex === 0 ? this._nowFromCurrent(this._current, h, units) : null;
+    const nowIdx = this._hourlyNowIdx != null ? this._hourlyNowIdx : this._hourlyStartIdx(h);
+    const isNow = idx === nowIdx;
+    const nowVals = isNow ? this._nowFromCurrent(this._current, h, units) : null;
     const temp = nowVals && nowVals.temp != null ? nowVals.temp : (h.temperature_2m && h.temperature_2m[idx] != null ? Utils.formatTemp(h.temperature_2m[idx], units) : '—');
     const tempRaw = nowVals && nowVals.tempRaw != null ? nowVals.tempRaw : (h.temperature_2m && h.temperature_2m[idx]);
     const tempTone = tempRaw != null ? Utils.getTempTone(tempRaw, units) : null;
@@ -1389,7 +1542,7 @@ const UI = {
     const feels = nowVals && nowVals.feels != null ? nowVals.feels : (h.apparent_temperature && h.apparent_temperature[idx] != null ? Utils.formatTemp(h.apparent_temperature[idx], units) : null);
     const feelsRaw = nowVals && nowVals.feelsRaw != null ? nowVals.feelsRaw : (h.apparent_temperature && h.apparent_temperature[idx]);
     const feelsVal = feels != null ? (feelsRaw != null ? `<span class="temp-tone-${Utils.getTempTone(feelsRaw, units)}">${this._esc(feels)}</span>` : feels) : null;
-    const pop = nowVals && modalIndex === 0 ? nowVals.pop : this._meaningfulHourPop(h, idx);
+    const pop = isNow && nowVals ? nowVals.pop : this._meaningfulHourPop(h, idx);
     const precip = nowVals && nowVals.precip != null ? nowVals.precip : (h.precipitation ? h.precipitation[idx] : 0);
     const wind = nowVals && nowVals.wind != null ? nowVals.wind : (h.wind_speed_10m && h.wind_speed_10m[idx] != null ? Math.round(h.wind_speed_10m[idx]) : null);
     const windDir = nowVals && nowVals.windDir != null ? nowVals.windDir : (h.wind_direction_10m && h.wind_direction_10m[idx] != null ? Math.round(h.wind_direction_10m[idx]) : null);
@@ -1408,7 +1561,7 @@ const UI = {
       const end = new Date(Utils.parseLocal(time, this._tz).getTime() + 60 * 60 * 1000);
       endClock = Utils.formatTime(end, this._tz);
     } catch { /* keep start clock */ }
-    const tLabel = modalIndex === 0
+    const tLabel = isNow
       ? `Now · ${Utils.formatClock(new Date())}`
       : `${clock} – ${endClock}`;
     let dLabel = '';
@@ -1456,19 +1609,22 @@ const UI = {
     const low = d.temperature_2m_min && d.temperature_2m_min[modalIndex] != null ? Utils.formatTemp(d.temperature_2m_min[modalIndex], units) : '—';
     const feelsHigh = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex] != null ? Utils.formatTemp(d.apparent_temperature_max[modalIndex], units) : null;
     const feelsLow = d.apparent_temperature_min && d.apparent_temperature_min[modalIndex] != null ? Utils.formatTemp(d.apparent_temperature_min[modalIndex], units) : null;
-    const pop = this.meaningfulDayPop(date, d, this._forecastHourly) ?? 0;
-    const rainSum = d.rain_sum ? d.rain_sum[modalIndex] : null;
-    const snowSum = d.snowfall_sum ? d.snowfall_sum[modalIndex] : null;
+    const outlook = this.dayOutlook(date, d, this._forecastHourly, units);
+    const pop = outlook && outlook.pop != null ? outlook.pop : 0;
+    const rainSum = outlook ? outlook.rainSum : (d.rain_sum ? d.rain_sum[modalIndex] : null);
+    const snowSum = outlook ? outlook.snowSum : (d.snowfall_sum ? d.snowfall_sum[modalIndex] : null);
     const sunshine = d.sunshine_duration && d.sunshine_duration[modalIndex] != null ? Utils.formatDuration(d.sunshine_duration[modalIndex]) : null;
     const daylight = d.daylight_duration && d.daylight_duration[modalIndex] != null ? Utils.formatDuration(d.daylight_duration[modalIndex]) : null;
     const sunrise = d.sunrise && d.sunrise[modalIndex] ? Utils.formatTime(d.sunrise[modalIndex], this._tz) : null;
     const sunset = d.sunset && d.sunset[modalIndex] ? Utils.formatTime(d.sunset[modalIndex], this._tz) : null;
     const tempMaxRaw = d.temperature_2m_max && d.temperature_2m_max[modalIndex];
     const tempTone = tempMaxRaw != null ? Utils.getTempTone(tempMaxRaw, units) : null;
-    const iconCode = WeatherIcons.dailyIcon(
-      WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[modalIndex],
-      pop, rainSum ?? 0, snowSum ?? 0, units
-    );
+    const iconCode = outlook
+      ? outlook.iconCode
+      : WeatherIcons.dailyIcon(
+        WeatherIcons.dominantDayCode(date, this._forecastHourly, pop, rainSum ?? 0, snowSum ?? 0, units) ?? d.weather_code[modalIndex],
+        pop, rainSum ?? 0, snowSum ?? 0, units
+      );
     const desc = Utils.getWeatherDescription(iconCode);
     const feelsHighRaw = d.apparent_temperature_max && d.apparent_temperature_max[modalIndex];
     const feelsVal = feelsHigh != null && feelsLow != null
@@ -1495,7 +1651,7 @@ const UI = {
         <div class="hourly-modal__summary">${summary ? this._esc(summary) : ''}</div>
         <div class="hourly-modal__list">
           ${row('Feels like', feelsVal, { html: feelsHtml })}
-          ${row('Chance', `${Math.round(pop)}%`)}
+          ${row('Chance', pop > 0 ? `${Math.round(pop)}%` : null)}
           ${row('Rainfall', rainLabel)}
           ${row('Sunrise', sunrise)}
           ${row('Sunset', sunset)}
@@ -1561,7 +1717,11 @@ const UI = {
     const container = this.$('hourlyChart');
     if (!container || !hourly || !hourly.time) return;
 
+    const mode = this._chartMode;
+    const modeLabel = this._chartModeLabel(mode);
     container.classList.remove('hidden');
+    const chartHead = this.$('hourlyChartHead');
+    if (chartHead) chartHead.classList.remove('hidden');
     this._bindChartSwipe(container);
 
     const W = Math.max(320, container.clientWidth || 600);
@@ -1573,16 +1733,11 @@ const UI = {
     const startIdx = this._hourlyStartIdx(hourly);
     const count = 24;
     const times = hourly.time.slice(startIdx, startIdx + count);
-    const mode = this._chartMode;
-    const modeLabel = this._chartModeLabel(mode);
     const modePillsMarkup = this.CHART_MODES.map((m) =>
       `<button type="button" class="hourly-chart__mode hourly-chart__mode--${m}${m === mode ? ' is-active' : ''}" role="tab" aria-selected="${m === mode}" data-mode="${m}">${this._chartModeShort(m)}</button>`
     ).join('');
     const empty = () => {
       container.innerHTML = `
-        <div class="hourly-chart__head">
-          <span class="hourly-chart__title">${modeLabel}</span>
-        </div>
         <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
         <div class="hourly-chart__empty">No data available for this chart.</div>`;
     };
@@ -1590,13 +1745,22 @@ const UI = {
     const slice = (key) => hourly[key] ? hourly[key].slice(startIdx, startIdx + count) : null;
 
     const pops = slice('precipitation_probability');
+    const precipSlice = slice('precipitation');
+    const snowSlice = slice('snowfall');
 
     let cfg;
     if (mode === 'rain') {
       if (!pops) { empty(); return; }
+      // Same gate as hourly list: probability alone is noise when amount is 0.
+      const gated = pops.map((p, i) => {
+        if (p == null || p <= 0) return 0;
+        const r = precipSlice && precipSlice[i] != null ? precipSlice[i] : 0;
+        const s = snowSlice && snowSlice[i] != null ? snowSlice[i] : 0;
+        return (r > 0 || s > 0) ? p : 0;
+      });
       cfg = {
         min: 0, max: 100, suffix: '%',
-        values: pops, color: '#38BDF8', cells: true,
+        values: gated, color: '#38BDF8', cells: true,
         legend: [{ label: 'chance of rain', swatch: 'rain' }],
       };
     } else if (mode === 'solar') {
@@ -1606,7 +1770,7 @@ const UI = {
       const vals = raw.map((v) => v == null ? null : Math.max(0, Math.min(100, Math.round((v / fullSun) * 100))));
       cfg = {
         min: 0, max: 100, values: vals, color: '#FACC15', suffix: '%',
-        legend: [{ label: 'Sun strength (%)', swatch: 'solar' }],
+        legend: [{ label: 'Solar radiation (%)', swatch: 'solar' }],
       };
     } else {
       const vals = slice('temperature_2m');
@@ -1809,9 +1973,6 @@ const UI = {
     }
 
     container.innerHTML = `
-      <div class="hourly-chart__head">
-        <span class="hourly-chart__title">${modeLabel}</span>
-      </div>
       <div class="hourly-chart__modes" role="tablist" aria-label="Chart type">${modePillsMarkup}</div>
       <svg viewBox="0 0 ${W} ${H}" class="hourly-chart__svg" role="img"
            aria-label="24-hour ${modeLabel} chart">
@@ -1851,8 +2012,8 @@ const UI = {
   },
 
   _chartModeLabel(mode) {
-    return mode === 'rain' ? 'Rain'
-      : mode === 'solar' ? 'Sun strength'
+    return mode === 'rain' ? 'Chance of rain'
+      : mode === 'solar' ? 'Solar'
       : 'Temperature & dew point';
   },
 
