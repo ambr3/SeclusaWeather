@@ -328,32 +328,61 @@ const UI = {
     const sunStatus = sunOrb ? (sunOrb.below ? 'Below horizon' : 'Above horizon') : null;
     const moonStatus = moonOrb ? (moonOrb.below ? 'Below horizon' : 'Above horizon') : null;
     const phaseLine = [phaseName, phaseIllum].filter(Boolean).join(' · ');
-    const fact = (label, value) => (
-      value
-        ? `<div class="hourly-modal__row earth-arc__row"><span class="hourly-modal__row-label">${this._esc(label)}</span><span class="hourly-modal__row-value">${this._esc(value)}</span></div>`
-        : ''
-    );
     const sunSpan = (sunrise !== '—' && sunset !== '—')
       ? `${sunrise} → ${sunset}`
       : (sunrise !== '—' ? sunrise : (sunset !== '—' ? sunset : null));
     const moonSpan = (moonrise !== '—' && moonset !== '—')
       ? `${moonrise} → ${moonset}`
       : (moonrise !== '—' ? moonrise : (moonset !== '—' ? moonset : null));
-    const sunFacts = [
-      fact('Path', sunSpan),
-      fact('Now', sunStatus),
-      fact('Daylight', daylight),
-      fact('Sunshine', sunshine),
-      fact('UV', uvLabel),
-      fact('Solar', solarSum),
-    ].join('');
-    const moonFacts = [
-      phaseLine
-        ? `<div class="hourly-modal__row earth-arc__row earth-arc__row--phase"><span class="hourly-modal__row-label">Phase</span><span class="hourly-modal__row-value">${this._esc(phaseLine)}</span></div>`
-        : '',
-      fact('Path', moonSpan),
-      fact('Now', moonStatus),
-    ].join('');
+
+    const row = (label, value, tone = '') => (
+      value
+        ? `<div class="earth-arc__row${tone ? ` earth-arc__row--${tone}` : ''}"><dt>${this._esc(label)}</dt><dd>${this._esc(value)}</dd></div>`
+        : ''
+    );
+    const panel = (title, rowsHtml, tone = '') => {
+      if (!rowsHtml) return '';
+      return `
+        <section class="earth-arc__panel${tone ? ` earth-arc__panel--${tone}` : ''}">
+          <h3 class="earth-arc__group-title">${this._esc(title)}</h3>
+          <dl class="earth-arc__list">${rowsHtml}</dl>
+        </section>`;
+    };
+
+    const sunPanel = panel('Sun', [
+      row('Rise–set', sunSpan),
+      row('Now', sunStatus),
+      row('Daylight', daylight),
+      row('Sunshine', sunshine),
+      row('UV', uvLabel),
+      row('Solar', solarSum),
+    ].join(''), 'sun');
+    const moonPanel = panel('Moon', [
+      row('Phase', phaseLine, 'phase'),
+      row('Rise–set', moonSpan),
+      row('Now', moonStatus),
+    ].join(''), 'moon');
+
+    const clockChanges = Utils.getClockChanges(this._tz);
+    let clocksBar = '';
+    if (clockChanges) {
+      if (clockChanges.observes) {
+        clocksBar = `
+          <section class="earth-arc__clocks" aria-label="Clock changes for this location">
+            <h3 class="earth-arc__group-title">Clocks</h3>
+            <dl class="earth-arc__list">
+              ${row('Summer', clockChanges.summer)}
+              ${row('Winter', clockChanges.winter)}
+            </dl>
+          </section>`;
+      } else {
+        clocksBar = `
+          <section class="earth-arc__clocks" aria-label="Clock changes for this location">
+            <h3 class="earth-arc__group-title">Clocks</h3>
+            <p class="earth-arc__clocks-note">No daylight-saving clock changes here.</p>
+          </section>`;
+      }
+    }
 
     const arcHost = this.$('earthArc');
     const arcSec = this.$('earthArcSection');
@@ -412,10 +441,12 @@ const UI = {
         <div class="current-weather__arc-orb current-weather__arc-sun${sunOrb && sunOrb.below ? ' is-below' : ''}${sunOrb ? '' : ' is-hidden'}">${WeatherIcons._sun()}</div>
         <div class="current-weather__arc-orb current-weather__arc-moon${moonOrb && moonOrb.below ? ' is-below' : ''}${moonOrb ? '' : ' is-hidden'}">${WeatherIcons._moon()}</div>
       </div>
-      ${(sunFacts || moonFacts) ? `
+      ${(sunPanel || moonPanel || clocksBar) ? `
       <div class="earth-arc__facts">
-        ${sunFacts ? `<div class="earth-arc__group"><div class="earth-arc__group-title">Sun</div><div class="hourly-modal__list earth-arc__list">${sunFacts}</div></div>` : ''}
-        ${moonFacts ? `<div class="earth-arc__group"><div class="earth-arc__group-title">Moon</div><div class="hourly-modal__list earth-arc__list">${moonFacts}</div></div>` : ''}
+        <div class="earth-arc__panels">
+          ${sunPanel}${moonPanel}
+        </div>
+        ${clocksBar}
       </div>` : ''}`;
     }
 

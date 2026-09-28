@@ -1163,13 +1163,13 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
   overflow: visible;
 }
 
-/* Earth / sun-moon path — own pill at bottom of weather content */
+/* Earth / sun-moon — mobile-first */
 .earth-arc {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 0.85rem 0.9rem 0.9rem;
+  padding: 0.75rem 0.75rem 0.85rem;
   margin: 0.35rem 0 0.4rem;
   background:
     radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 55%),
@@ -1188,36 +1188,120 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 }
 
 .earth-arc .current-weather__arc {
-  width: min(100%, 300px);
-  margin-top: 0.15rem;
+  width: min(100%, 240px);
+  margin: 0.1rem auto 0.15rem;
 }
 
 .earth-arc__facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1.1rem;
-  margin-top: 0.65rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 0.55rem;
+}
+
+.earth-arc__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.earth-arc__panel,
+.earth-arc__clocks {
+  min-width: 0;
+  padding: 0.55rem 0.65rem 0.6rem;
+  background: color-mix(in srgb, var(--color-card) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-card-border) 65%, transparent);
+  border-radius: var(--radius-sm);
 }
 
 .earth-arc__group-title {
-  font-size: 0.72rem;
+  margin: 0 0 0.35rem;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--color-text-muted);
-  margin-bottom: 0.15rem;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
 }
 
 .earth-arc__list {
-  margin-top: 0;
-  border-top: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
 }
 
-.earth-arc__row.earth-arc__row--phase .hourly-modal__row-value {
+.earth-arc__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  min-height: 1.3rem;
+}
+
+.earth-arc__row dt {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.earth-arc__row dd {
+  margin: 0;
+  flex: 1 1 auto;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text);
+  text-align: right;
+  min-width: 0;
+}
+
+.earth-arc__row--phase dd {
   color: #e0e7ff;
-  text-shadow: 0 1px 10px rgba(129, 140, 248, 0.45);
+}
+
+.earth-arc__clocks {
+  margin-top: 0.55rem;
+}
+
+.earth-arc__clocks .earth-arc__group-title {
+  margin-bottom: 0.35rem;
+}
+
+.earth-arc__clocks .earth-arc__row dd {
+  color: #fde68a;
+}
+
+.earth-arc__clocks-note {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 640px) {
+  .earth-arc {
+    padding: 0.9rem 1rem 1rem;
+  }
+
+  .earth-arc .current-weather__arc {
+    width: min(100%, 300px);
+  }
+
+  .earth-arc__panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  .earth-arc__panel,
+  .earth-arc__clocks {
+    padding: 0.65rem 0.75rem 0.7rem;
+  }
+
+  .earth-arc__row dd {
+    font-size: 0.86rem;
+  }
 }
 
 .current-weather__arc-svg {

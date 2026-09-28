@@ -118,6 +118,17 @@ if (Utils.getMoonPhaseName(0) !== 'New Moon') { console.error('moon new'); proce
 if (Utils.getMoonPhaseName(0.5) !== 'Full Moon') { console.error('moon full'); process.exit(1); }
 if (Utils.getMoonIllumination(0.5) !== 100) { console.error('illum full'); process.exit(1); }
 if (Utils.getMoonIllumination(0) !== 0) { console.error('illum new'); process.exit(1); }
+const londonClocks = Utils.getClockChanges('Europe/London', 2026);
+if (!londonClocks || !londonClocks.observes || !londonClocks.summer || !londonClocks.winter) {
+  console.error('London clock changes missing', londonClocks); process.exit(1);
+}
+if (!/Mar/.test(londonClocks.summer) || !/Oct/.test(londonClocks.winter)) {
+  console.error('London clock change months wrong', londonClocks); process.exit(1);
+}
+const tokyoClocks = Utils.getClockChanges('Asia/Tokyo', 2026);
+if (!tokyoClocks || tokyoClocks.observes) {
+  console.error('Tokyo should not observe DST', tokyoClocks); process.exit(1);
+}
 console.log('unit helpers ok');
 NODE
 pass "node unit helpers"
@@ -131,10 +142,14 @@ grep -q "built-in \*\*London\*\* default" README.md || bad "README London defaul
 grep -q '_modalPaneHLocked' js/ui.js || bad "modal height settle lock missing"
 grep -q 'settle = false' js/ui.js || bad "modal settle remasure missing"
 grep -q '{ html = false }' js/ui.js || bad "_statRow html opt-in missing"
-# Moon phase + sun/moon facts live in the earth-arc pill
-grep -q 'earth-arc__row--phase' js/ui.js || bad "earth-arc phase row missing"
+# Moon phase + sun/moon/clocks live in the earth-arc pill
 grep -q 'earth-arc__facts' js/ui.js || bad "earth-arc facts missing"
-grep -q 'earth-arc__list' js/ui.js || bad "earth-arc list style missing"
+grep -q 'earth-arc__panels' js/ui.js css/style.css || bad "earth panels missing"
+grep -q 'earth-arc__clocks' js/ui.js css/style.css || bad "clocks bar missing"
+grep -q "row('UV'" js/ui.js || bad "UV label missing"
+grep -q "row('Solar'" js/ui.js || bad "solar label missing"
+grep -q "row('Summer'" js/ui.js || bad "summer label missing"
+grep -q 'getClockChanges' js/utils.js js/ui.js || bad "getClockChanges missing"
 grep -q 'hourly-modal__list' js/ui.js || bad "enlarge list missing"
 grep -q '_statRow' js/ui.js || bad "enlarge list rows missing"
 ! grep -q 'hourly-modal__stats' js/ui.js || bad "enlarge chips should stay removed"

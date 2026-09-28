@@ -151,6 +151,87 @@ const Utils = {
     return m === 0 ? `${h}h` : `${h}h ${m}m`;
   },
 
+  // UTC offset (minutes) for an IANA zone at an instant — used for DST scans.
+  tzOffsetMinutes(tz, date) {
+    if (!tz || !(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        timeZoneName: 'longOffset',
+      }).formatToParts(date);
+      const name = (parts.find((p) => p.type === 'timeZoneName') || {}).value || '';
+      if (name === 'GMT' || name === 'UTC') return 0;
+      const m = name.match(/([+-])(\d{1,2})(?::(\d{2}))?/);
+      if (!m) return null;
+      const sign = m[1] === '-' ? -1 : 1;
+      return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
+    } catch {
+      return null;
+    }
+  },
+
+  // Summer / winter clock-change dates for a place's IANA timezone (this year).
+  // Uses Intl tzdata — no network. Empty when the zone does not observe DST.
+  getClockChanges(tz, year) {
+    if (!tz) return null;
+    let y = year;
+    if (y == null) {
+      try {
+        y = Number(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(new Date()));
+      } catch {
+        y = new Date().getFullYear();
+      }
+    }
+    if (!Number.isFinite(y)) return null;
+
+    const fmtDay = (d) => {
+      try {
+        return d.toLocaleDateString('en-GB', {
+          timeZone: tz, day: 'numeric', month: 'short', year: 'numeric',
+        });
+      } catch {
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+    };
+
+    try {
+      let prevOff = null;
+      let prevUtc = null;
+      let summer = null;
+      let winter = null;
+      for (let month = 0; month < 12; month++) {
+        for (let day = 1; day <= 31; day++) {
+          const utc = new Date(Date.UTC(y, month, day, 12, 0, 0));
+          if (utc.getUTCMonth() !== month) continue;
+          const off = this.tzOffsetMinutes(tz, utc);
+          if (off == null) return null;
+          if (prevOff != null && off !== prevOff) {
+            let lo = prevUtc.getTime();
+            let hi = utc.getTime();
+            while (hi - lo > 3600000) {
+              const mid = new Date((lo + hi) / 2);
+              const mOff = this.tzOffsetMinutes(tz, mid);
+              if (mOff === prevOff) lo = mid.getTime();
+              else hi = mid.getTime();
+            }
+            const at = new Date(hi);
+            const label = fmtDay(at);
+            if (off > prevOff) {
+              if (!summer) summer = label;
+            } else if (!winter) {
+              winter = label;
+            }
+          }
+          prevOff = off;
+          prevUtc = utc;
+        }
+      }
+      return { year: y, summer, winter, observes: !!(summer || winter) };
+    } catch {
+      return null;
+    }
+  },
+
   formatPressure(hPa, unit) {
     if (hPa == null || !Number.isFinite(hPa)) return '—';
     if (unit === 'inHg') return `${(hPa * 0.02953).toFixed(2)} inHg`;
