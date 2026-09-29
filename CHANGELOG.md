@@ -4,6 +4,14 @@ All notable changes to **Seclusa Weather**.
 
 ## Unreleased
 
+## 0.6.4 — 2026-09-29
+
+### Fixed
+- Service worker no longer intercepts Open-Meteo requests (was synthesizing 503 offline JSON and breaking search/refresh on the hosted site). Offline forecasts stay in `localStorage` only.
+
+### Changed
+- Shipping version / SW cache **0.6.4**.
+
 ## 0.6.3 — 2026-09-29
 
 ### Fixed

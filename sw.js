@@ -1,7 +1,6 @@
-const CACHE_NAME = 'seclusaweather-v0.6.3';
-const API_CACHE = 'seclusaweather-api-v1';
-const VERSION = 'v0.6.3';
-const ASSET_VER = '0.6.3';
+const CACHE_NAME = 'seclusaweather-v0.6.4';
+const VERSION = 'v0.6.4';
+const ASSET_VER = '0.6.4';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -30,6 +29,21 @@ const STATIC_ASSETS = [
   './assets/fonts/sora-latin-800-normal.woff2'
 ];
 
+const OPEN_METEO_ORIGINS = new Set([
+  'https://api.open-meteo.com',
+  'https://air-quality-api.open-meteo.com',
+  'https://geocoding-api.open-meteo.com',
+]);
+
+function isOpenMeteoRequest(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && OPEN_METEO_ORIGINS.has(u.origin);
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
@@ -47,133 +61,25 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== API_CACHE)
+          // Drop legacy SW API cache too — offline forecasts live in localStorage.
+          .filter((k) => k !== CACHE_NAME)
           .map((k) => caches.delete(k))
       )
-    ).then(() => pruneApiCache()).then(() => {
+    ).then(() => {
       self.clients.claim();
-      if (self._pruneTimer) clearInterval(self._pruneTimer);
-      self._pruneTimer = setInterval(pruneApiCache, PRUNE_INTERVAL);
     })
   );
 });
-
-const API_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-const PRUNE_INTERVAL = 6 * 60 * 60 * 1000;
-// CORS-filtered responses never expose the `Date` header, so the API cache
-// records its own write-time timestamp in a sibling meta entry instead of
-// trying to read unreadable response headers.
-const API_META_SUFFIX = '&meta=savedAt';
-// Forecast + AQ only — never cache geocoding (search terms are privacy-sensitive).
-const API_CACHEABLE_ORIGINS = new Set([
-  'https://api.open-meteo.com',
-  'https://air-quality-api.open-meteo.com',
-]);
-const GEOCODING_ORIGIN = 'https://geocoding-api.open-meteo.com';
-
-function isApiRequest(url) {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' && (API_CACHEABLE_ORIGINS.has(u.origin) || u.origin === GEOCODING_ORIGIN);
-  } catch {
-    return false;
-  }
-}
-
-function isCacheableApiRequest(url) {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' && API_CACHEABLE_ORIGINS.has(u.origin);
-  } catch {
-    return false;
-  }
-}
-
-async function pruneApiCache() {
-  try {
-    const cache = await caches.open(API_CACHE);
-    const requests = await cache.keys();
-    const now = Date.now();
-    const metas = new Set();
-    const staleParents = new Set();
-
-    for (const req of requests) {
-      // Drop any legacy geocoding cache entries (search history).
-      if (req.url.startsWith(GEOCODING_ORIGIN)) {
-        await cache.delete(req);
-        continue;
-      }
-      if (!req.url.endsWith(API_META_SUFFIX)) continue;
-      metas.add(req.url);
-      const resp = await cache.match(req);
-      if (!resp) continue;
-      const t = Number(await resp.text());
-      if (!Number.isFinite(t)) continue;
-      if (now - t > API_MAX_AGE) staleParents.add(req.url.slice(0, -API_META_SUFFIX.length));
-    }
-
-    const doomed = [];
-    for (const req of requests) {
-      if (req.url.startsWith(GEOCODING_ORIGIN)) continue;
-      if (req.url.endsWith(API_META_SUFFIX)) {
-        const parent = req.url.slice(0, -API_META_SUFFIX.length);
-        if (staleParents.has(parent)) doomed.push(req);
-      } else if (!metas.has(req.url + API_META_SUFFIX) || staleParents.has(req.url)) {
-        // Legacy entry from before meta timestamps, or an expired parent.
-        doomed.push(req);
-      }
-    }
-
-    if (doomed.length) await Promise.all(doomed.map((req) => cache.delete(req)));
-  } catch (e) {
-    /* pruning is best-effort */
-  }
-}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = request.url;
 
-  if (isApiRequest(url)) {
-    // Geocoding: network-only (no Cache Storage of search queries).
-    if (!isCacheableApiRequest(url)) {
-      event.respondWith(
-        fetch(request).catch(() =>
-          new Response(JSON.stringify({ error: 'offline' }), {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
-      );
-      return;
-    }
-    event.respondWith(
-      caches.open(API_CACHE).then((cache) =>
-        fetch(request)
-          .then((response) => {
-            if (response && response.ok) {
-              cache.put(request, response.clone())
-                .then(() => cache.put(`${url}${API_META_SUFFIX}`, new Response(String(Date.now()))))
-                .then(() => pruneApiCache())
-                .catch(() => {});
-            }
-            return response;
-          })
-          .catch(() =>
-            cache.match(request).then((cached) =>
-              cached || new Response(JSON.stringify({ error: 'offline' }), {
-                status: 503,
-                statusText: 'Service Unavailable',
-                headers: { 'Content-Type': 'application/json' },
-              })
-            )
-          )
-      )
-    );
-    return;
-  }
+  // Never intercept Open-Meteo. Re-fetching inside the SW is subject to the
+  // SW script's CSP and was synthesizing fake offline API responses on the
+  // hosted site, which broke search and refresh.
+  if (isOpenMeteoRequest(url)) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
