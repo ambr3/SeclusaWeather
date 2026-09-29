@@ -1592,8 +1592,7 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
 
 /* Shared press + hover affordances on interactive tiles */
 .hourly-tile:active,
-.hourly-card__row:active,
-.hourly-card__cell:active,
+.hourly-strip__hour:active,
 .forecast-card__row:active,
 .conditions-item--press:active,
 .hourly-chart__mode:active {
@@ -1619,10 +1618,8 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
-  .hourly-card__row:hover,
-  .hourly-card__cell:hover {
-    background: var(--color-card-hover);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  .hourly-strip__hour:hover {
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .forecast-card__row--today:hover {
@@ -1632,11 +1629,12 @@ body:not(.theme-dark).theme-mist .hourly-tile--now .hourly-tile__temp {
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
-  .hourly-card__row--now:hover {
-    background: linear-gradient(105deg, rgba(255, 209, 102, 0.34), rgba(255, 255, 255, 0.09));
+  .hourly-strip__hour--now:hover {
+    background: linear-gradient(180deg, rgba(255, 209, 102, 0.34), rgba(255, 255, 255, 0.1));
     box-shadow:
-      inset 2.5px 0 0 var(--color-accent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      inset 0 0 0 1px rgba(255, 209, 102, 0.5),
+      inset 0 -3px 0 0 var(--color-accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
 
   .conditions-item--press:hover {
@@ -2106,7 +2104,7 @@ body.theme-dark .hourly-chart__modes {
   background: #38BDF8;
 }
 
-/* Hourly — compact 2-col grid, swipe days L/R */
+/* Hourly — Now→forward horizontal strip */
 .hourly-section {
   margin-bottom: 1.25rem;
 }
@@ -2119,126 +2117,139 @@ body.theme-dark .hourly-chart__modes {
   margin-bottom: 0;
 }
 
-.hourly-card__page {
-  flex: 0 0 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  box-sizing: border-box;
-  height: var(--hourly-page-h, auto);
-  min-height: var(--hourly-page-h, auto);
-  padding: 0.3rem 0.35rem 0.35rem;
+.hourly-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.1rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 0.55rem 0.45rem 0.6rem;
 }
 
-.hourly-card__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.18rem 0.22rem;
-  align-content: start;
+.hourly-strip::-webkit-scrollbar {
+  display: none;
 }
 
-.hourly-card__cell {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+.hourly-strip__hour {
+  flex: 0 0 auto;
+  width: 3.65rem;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.28rem;
-  min-height: 2.35rem;
-  padding: 0.24rem 0.32rem 0.24rem 0.26rem;
-  border-radius: 9px;
+  padding: 0.45rem 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
-  transition: background 0.15s, transform 0.12s, box-shadow 0.15s, border-color 0.15s;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  scroll-snap-align: start;
+  transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
 }
 
-.hourly-card__row--empty {
-  visibility: hidden;
-  pointer-events: none;
-  cursor: default;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
+.hourly-strip__time {
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.hourly-card__cell-icon {
-  width: 28px;
-  height: 28px;
+.hourly-strip__icon {
+  width: 2rem;
+  height: 2rem;
   display: grid;
   place-items: center;
-  flex-shrink: 0;
 }
 
-.hourly-card__cell-icon svg {
+.hourly-strip__icon svg {
   width: 100%;
   height: 100%;
   -webkit-user-drag: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
 }
 
-.hourly-card__cell-meta {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.hourly-card__cell-time {
+.hourly-strip__temp {
   font-family: var(--font-heading);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  white-space: nowrap;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-}
-
-.hourly-card__cell-vals {
-  display: flex;
-  align-items: baseline;
-  gap: 0.28rem;
-  min-width: 0;
-}
-
-.hourly-card__cell-temp {
-  font-family: var(--font-heading);
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 0.95rem;
+  font-weight: 800;
   line-height: 1;
+  color: var(--color-text);
 }
 
-.hourly-card__cell-rain {
-  font-size: 0.6rem;
+.hourly-strip__rain {
+  font-size: 0.68rem;
   font-weight: 700;
   color: #7dd3fc;
   line-height: 1;
-  white-space: nowrap;
+  min-height: 0.85rem;
 }
 
-.hourly-card__row--now {
-  background: linear-gradient(105deg, rgba(255, 209, 102, 0.28), rgba(255, 255, 255, 0.07));
-  box-shadow: inset 2.5px 0 0 var(--color-accent);
-  border-color: rgba(255, 209, 102, 0.32);
+.hourly-strip__rain--empty {
+  visibility: hidden;
 }
 
-.hourly-card__row--now .hourly-card__cell-time {
+.hourly-strip__hour--now {
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.28), rgba(255, 255, 255, 0.07));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 209, 102, 0.45),
+    inset 0 -3px 0 0 var(--color-accent);
+}
+
+.hourly-strip__hour--now .hourly-strip__time {
   color: var(--color-accent);
   font-weight: 800;
 }
 
-.hourly-card__row--past {
-  opacity: 0.42;
+.hourly-strip__day {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.35rem;
+  margin: 0 0.1rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.hourly-card__row--past .hourly-card__cell-icon {
-  filter: grayscale(0.4);
+.hourly-strip__day-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
-.hourly-card__pager.forecast-card__pager {
-  padding: 0.38rem 0.5rem 0.48rem;
+@media (min-width: 640px) {
+  .hourly-strip {
+    padding: 0.65rem 0.55rem 0.7rem;
+    gap: 0.15rem;
+  }
+
+  .hourly-strip__hour {
+    width: 4rem;
+    padding: 0.55rem 0.25rem 0.5rem;
+    gap: 0.32rem;
+  }
+
+  .hourly-strip__icon {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .hourly-strip__temp {
+    font-size: 1.05rem;
+  }
 }
 
 .forecast-card__pager--stack {

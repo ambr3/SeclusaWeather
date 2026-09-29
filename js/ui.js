@@ -1010,41 +1010,23 @@ const UI = {
       tomorrowKey = advanceDay(todayKey);
     }
 
-    // Full calendar day for Today (00:00→23:00) so the pill isn't half-empty.
-    let listStart = nowIdx;
-    for (let i = 0; i < hourly.time.length; i++) {
-      if (String(hourly.time[i]).slice(0, 10) === todayKey) {
-        listStart = i;
-        break;
-      }
-    }
+    // Now → forward only (no past hours).
+    const listStart = nowIdx;
     this._hourly = hourly;
     this._hourlyStart = listStart;
     this._hourlyCount = Math.max(0, hourly.time.length - listStart);
     this._hourlyNowIdx = nowIdx;
 
-    const dayGroups = [];
-    let cur = null;
-    for (let idx = listStart; idx < hourly.time.length; idx++) {
-      const dateKey = String(hourly.time[idx]).slice(0, 10);
-      if (!cur || cur.key !== dateKey) {
-        cur = { key: dateKey, indices: [] };
-        dayGroups.push(cur);
-      }
-      cur.indices.push(idx);
-    }
-
     const dayLabelFor = (dateKey) => {
       if (dateKey === todayKey) return 'Today';
       if (dateKey === tomorrowKey) return 'Tomorrow';
       return Utils.parseLocal(dateKey + 'T00:00:00', this._tz)
-        .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        .toLocaleDateString('en-US', { weekday: 'short' });
     };
 
-    const rowFor = (idx) => {
+    const hourFor = (idx) => {
       const time = hourly.time[idx];
       const isNow = idx === nowIdx;
-      const isPast = idx < nowIdx;
       const nowVals = isNow ? this._nowFromCurrent(this._current, hourly, units) : null;
       let tempRaw = hourly.temperature_2m && hourly.temperature_2m[idx] != null
         ? hourly.temperature_2m[idx]
@@ -1076,116 +1058,47 @@ const UI = {
       );
       const rain = pop != null && pop > 0 ? `${Math.round(pop)}%` : '';
       const modalI = idx - listStart;
-      const rowClass = isNow ? ' hourly-card__row--now' : (isPast ? ' hourly-card__row--past' : '');
       return `
-        <div class="hourly-card__cell hourly-card__row${rowClass}"
-             role="listitem" data-i="${modalI}">
-          <span class="hourly-card__cell-icon">${icon}</span>
-          <span class="hourly-card__cell-meta">
-            <span class="hourly-card__cell-time">${timeLabel}</span>
-            <span class="hourly-card__cell-vals">
-              <span class="hourly-card__cell-temp">${temp}</span>
-              ${rain ? `<span class="hourly-card__cell-rain">${rain}</span>` : ''}
-            </span>
-          </span>
+        <div class="hourly-strip__hour${isNow ? ' hourly-strip__hour--now' : ''}"
+             role="listitem" data-i="${modalI}" tabindex="0"
+             aria-label="${this._esc(`${timeLabel}, ${temp}${rain ? `, ${rain} rain` : ''}`)}">
+          <span class="hourly-strip__time">${timeLabel}</span>
+          <span class="hourly-strip__icon">${icon}</span>
+          <span class="hourly-strip__temp">${temp}</span>
+          ${rain ? `<span class="hourly-strip__rain">${rain}</span>` : '<span class="hourly-strip__rain hourly-strip__rain--empty" aria-hidden="true"></span>'}
         </div>
       `;
     };
 
-    const hoursPerPage = Math.max(24, ...dayGroups.map((g) => g.indices.length));
-    const emptyCell = () => `
-      <div class="hourly-card__cell hourly-card__row hourly-card__row--empty" aria-hidden="true">
-        <span class="hourly-card__cell-icon"></span>
-        <span class="hourly-card__cell-meta">
-          <span class="hourly-card__cell-time">&nbsp;</span>
-          <span class="hourly-card__cell-vals">
-            <span class="hourly-card__cell-temp">&nbsp;</span>
-          </span>
-        </span>
-      </div>`;
+    const parts = [];
+    let prevKey = null;
+    for (let idx = listStart; idx < hourly.time.length; idx++) {
+      const dateKey = String(hourly.time[idx]).slice(0, 10);
+      if (prevKey && dateKey !== prevKey) {
+        parts.push(`
+          <div class="hourly-strip__day" role="presentation" aria-hidden="true">
+            <span class="hourly-strip__day-label">${this._esc(dayLabelFor(dateKey))}</span>
+          </div>`);
+      }
+      parts.push(hourFor(idx));
+      prevKey = dateKey;
+    }
 
-    const pages = dayGroups.map((g) => {
-      const cells = g.indices.map((idx) => rowFor(idx));
-      while (cells.length < hoursPerPage) cells.push(emptyCell());
-      return `<div class="hourly-card__page" role="group" aria-label="${this._esc(dayLabelFor(g.key))}"><div class="hourly-card__grid" role="list">${cells.join('')}</div></div>`;
-    });
-
-    const pageCount = pages.length;
-    const dots = pageCount > 1
-      ? Array.from({ length: pageCount }, (_, p) =>
-        `<button type="button" class="forecast-card__pagerdot${p === 0 ? ' is-active' : ''}" data-page="${p}"
-          aria-label="${this._esc(dayLabelFor(dayGroups[p].key))}"></button>`
-      ).join('')
-      : '';
-
+    Utils.dynCSS.del('hourly-h');
     this.$('hourlyScroll').innerHTML = `
-      <div class="hourly-card forecast-card forecast-card--pager" role="list">
-        <div class="hourly-card__pages forecast-card__pages">${pages.join('')}</div>
-        ${pageCount > 1 ? `
-        <div class="hourly-card__pager forecast-card__pager forecast-card__pager--stack" role="tablist" aria-label="Hourly days">
-          <div class="forecast-card__pagerdots">${dots}</div>
-          <span class="forecast-card__pagerlabel">
-            <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
-            <span class="forecast-card__pagerlead">Swipe</span>
-            <span class="forecast-card__pagerrange">${this._esc(dayLabelFor(dayGroups[1] ? dayGroups[1].key : dayGroups[0].key))}</span>
-          </span>
-          <span class="forecast-card__pagertap">Tap any hour for more info</span>
-        </div>` : ''}
+      <div class="hourly-card forecast-card">
+        <div class="hourly-strip" role="list" aria-label="Hourly forecast from now">
+          ${parts.join('')}
+        </div>
       </div>
     `;
-
-    const pagesEl = this.$('hourlyScroll').querySelector('.hourly-card__pages');
-    const pagerEl = this.$('hourlyScroll').querySelector('.hourly-card__pager');
-    if (pagesEl) {
-      const syncPageH = () => {
-        const pageNodes = pagesEl.querySelectorAll('.hourly-card__page');
-        let maxH = 0;
-        Utils.dynCSS.del('hourly-h');
-        pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
-        if (maxH > 0) {
-          Utils.dynCSS.set('hourly-h',
-            `:root{--hourly-page-h:${maxH}px}.hourly-card__pages{height:var(--hourly-page-h)}`);
-        }
-      };
-      requestAnimationFrame(() => requestAnimationFrame(syncPageH));
-    }
-    if (pagesEl && pagerEl && pageCount > 1) {
-      const dotsEl = pagerEl.querySelectorAll('.forecast-card__pagerdot');
-      const labelEl = pagerEl.querySelector('.forecast-card__pagerlabel');
-      const rangeEl = pagerEl.querySelector('.forecast-card__pagerrange');
-      const syncDots = () => {
-        const page = Math.round(pagesEl.scrollLeft / pagesEl.clientWidth) || 0;
-        dotsEl.forEach((dot, p) => dot.classList.toggle('is-active', p === page));
-        if (labelEl) labelEl.classList.toggle('is-back', page > 0);
-        if (rangeEl) {
-          const next = dayGroups[page === 0 ? 1 : page - 1] || dayGroups[page];
-          rangeEl.textContent = next ? dayLabelFor(next.key) : 'next day';
-        }
-      };
-      pagesEl.addEventListener('scroll', syncDots, { passive: true });
-      pagerEl.addEventListener('click', (e) => {
-        const dot = e.target.closest('.forecast-card__pagerdot');
-        if (!dot) return;
-        const page = parseInt(dot.dataset.page, 10) || 0;
-        pagesEl.scrollTo({ left: page * pagesEl.clientWidth, behavior: 'smooth' });
-      });
-      syncDots();
-    }
 
     if (!this._hourlyModalBound) this._bindHourlyModal();
   },
 
   _updateHourlyScroll() {
-    const pagesEl = this.$('hourlyScroll') && this.$('hourlyScroll').querySelector('.hourly-card__pages');
-    if (!pagesEl) return;
-    const pageNodes = pagesEl.querySelectorAll('.hourly-card__page');
-    let maxH = 0;
+    // Strip scrolls horizontally; no equal-height page sync.
     Utils.dynCSS.del('hourly-h');
-    pageNodes.forEach((p) => { maxH = Math.max(maxH, p.offsetHeight); });
-    if (maxH > 0) {
-      Utils.dynCSS.set('hourly-h',
-        `:root{--hourly-page-h:${maxH}px}.hourly-card__pages{height:var(--hourly-page-h)}`);
-    }
   },
 
   _bindHourlyModal() {
@@ -1194,8 +1107,15 @@ const UI = {
     if (!scroll || !modal) return;
 
     scroll.addEventListener('click', (e) => {
-      const card = e.target.closest('.hourly-card__row');
+      const card = e.target.closest('.hourly-strip__hour');
       if (card && !this._modalOpen) this.openHourlyDetail(parseInt(card.dataset.i, 10) || 0);
+    });
+    scroll.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('.hourly-strip__hour');
+      if (!card || this._modalOpen) return;
+      e.preventDefault();
+      this.openHourlyDetail(parseInt(card.dataset.i, 10) || 0);
     });
 
     const fScroll = this.$('forecastCards');
