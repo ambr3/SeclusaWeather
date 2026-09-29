@@ -13,6 +13,8 @@ const App = {
   dropdownIndex: -1,
   _weatherSeq: 0,
   _searchSeq: 0,
+  _locSeq: 0,
+  _userBusy: 0,
   _blurTimer: null,
   _last: null,
 
@@ -126,11 +128,19 @@ const App = {
       if (!window.confirm('Erase all local data and cached forecasts?')) return;
       const keys = ['units', 'windUnit', 'visUnit', 'pressUnit', 'chartMode', 'dynamicText', 'theme', 'lastCity', 'lastCountry', 'lastLat', 'lastLon', 'weatherCache', 'hourlyAll'];
       keys.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+      this._last = null;
+      this.lastCity = null;
+      this.lastCountry = '';
+      this.lastLat = NaN;
+      this.lastLon = NaN;
       if (window.caches) {
         try {
           const cacheKeys = await window.caches.keys();
           await Promise.all(cacheKeys.map((k) => window.caches.delete(k)));
-        } catch (e) {}
+        } catch (e) {
+          UI.showError('Could not clear all cached data. Try again.');
+          return;
+        }
       }
       window.location.reload();
     });
@@ -213,13 +223,17 @@ const App = {
       UI.markOffline(!navigator.onLine);
     }
 
-    this._ensureDefaultLocation();
-
+    // No silent default location — wait for search, locate, or a restored cache.
     if (navigator.onLine) {
       this.startAutoRefresh();
       if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) {
         this.refreshSilently();
       }
+    }
+
+    if (!this._last) {
+      this.dismissSplash();
+      UI.showEmptyStart();
     }
 
     if ('serviceWorker' in navigator) {
@@ -234,20 +248,6 @@ const App = {
     if (!el || el.classList.contains('is-leaving')) return;
     el.classList.add('is-leaving');
     setTimeout(() => { el.classList.add('hidden'); }, 520);
-  },
-
-  _ensureDefaultLocation() {
-    if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) return;
-    const d = CONFIG.DEFAULT_LOCATION;
-    if (!d) return;
-    this.lastCity = d.name;
-    this.lastCountry = d.country || '';
-    this.lastLat = d.lat;
-    this.lastLon = d.lon;
-    Utils.safeSet('lastCity', d.name);
-    Utils.safeSet('lastCountry', d.country || '');
-    Utils.safeSet('lastLat', String(d.lat));
-    Utils.safeSet('lastLon', String(d.lon));
   },
 
   startAutoRefresh() {
@@ -346,7 +346,8 @@ const App = {
   async refreshSilently() {
     if (!Number.isFinite(this.lastLat) || !Number.isFinite(this.lastLon)) return;
     if (!navigator.onLine) return;
-    const seq = ++this._weatherSeq;
+    if (this._userBusy > 0) return;
+    const snap = this._weatherSeq;
     const lat = this.lastLat;
     const lon = this.lastLon;
     const units = this.units;
@@ -358,7 +359,7 @@ const App = {
         API.getWeather(lat, lon, units, windUnit),
         API.getAirQuality(lat, lon).catch(() => null),
       ]);
-      if (seq !== this._weatherSeq) return;
+      if (this._userBusy > 0 || snap !== this._weatherSeq) return;
       if (!weather) return;
       UI.markStale(false);
       UI.markOffline(false);
@@ -505,16 +506,16 @@ const App = {
   },
 
   async searchCity(city) {
-    const seq = ++this._weatherSeq;
+    const searchId = ++this._searchSeq;
     UI.showLoading();
     try {
       const results = await API.searchCities(city);
-      if (seq !== this._weatherSeq) return;
+      if (searchId !== this._searchSeq) return;
       if (!results.length) throw new Error('City not found. Check the spelling.');
       const geo = results[0];
       await this.loadWeather(geo.lat, geo.lon, geo.name, geo.country, geo.name);
     } catch (err) {
-      if (seq !== this._weatherSeq) return;
+      if (searchId !== this._searchSeq) return;
       const cached = Utils.loadWeatherCache();
       if (cached && cached.weather && !navigator.onLine) {
         UI.markOffline(true);
@@ -558,6 +559,7 @@ const App = {
   },
 
   async loadWeather(lat, lon, name, country, cityKey, opts) {
+    this._userBusy++;
     const seq = ++this._weatherSeq;
     name = String(name || '').slice(0, 80);
     country = String(country || '').slice(0, 8);
@@ -569,83 +571,87 @@ const App = {
     let weather;
     let aq = null;
     try {
-      [weather, aq] = await Promise.all([
-        API.getWeather(lat, lon, this.units, this.windUnit),
-        API.getAirQuality(lat, lon).catch(() => null),
-      ]);
-    } catch (err) {
-      if (seq !== this._weatherSeq) return;
-      const cached = Utils.loadWeatherCache();
-      if (cached && cached.weather) {
-        weather = cached.weather;
-        aq = cached.aq || null;
-        name = cached.name || name;
-        country = cached.country || country;
-        UI.markOffline(!navigator.onLine);
-        const ageMs = cached.savedAt ? Date.now() - cached.savedAt : 0;
-        const ageHrs = Math.floor(ageMs / (60 * 60 * 1000));
-        if (ageHrs >= 6) UI.markStale(true, `Forecast data is ${ageHrs}h old.`);
+      try {
+        [weather, aq] = await Promise.all([
+          API.getWeather(lat, lon, this.units, this.windUnit),
+          API.getAirQuality(lat, lon).catch(() => null),
+        ]);
+      } catch (err) {
+        if (seq !== this._weatherSeq) return;
+        const cached = Utils.loadWeatherCache();
+        if (cached && cached.weather) {
+          weather = cached.weather;
+          aq = cached.aq || null;
+          name = cached.name || name;
+          country = cached.country || country;
+          UI.markOffline(!navigator.onLine);
+          const ageMs = cached.savedAt ? Date.now() - cached.savedAt : 0;
+          const ageHrs = Math.floor(ageMs / (60 * 60 * 1000));
+          if (ageHrs >= 6) UI.markStale(true, `Forecast data is ${ageHrs}h old.`);
 
-        try {
-          // Keep the user's current unit preference; rescale the cached payload
-          // so the toggle is not silently undone while offline.
-          let cacheUnits = cached.units || this.units;
-          let cacheWind = cached.windUnit || this.windUnit;
-          if (cacheUnits !== this.units || cacheWind !== this.windUnit) {
-            weather = Utils.convertWeatherUnits(weather, cacheUnits, this.units, cacheWind, this.windUnit);
-            cacheUnits = this.units;
-            cacheWind = this.windUnit;
+          try {
+            // Keep the user's current unit preference; rescale the cached payload
+            // so the toggle is not silently undone while offline.
+            let cacheUnits = cached.units || this.units;
+            let cacheWind = cached.windUnit || this.windUnit;
+            if (cacheUnits !== this.units || cacheWind !== this.windUnit) {
+              weather = Utils.convertWeatherUnits(weather, cacheUnits, this.units, cacheWind, this.windUnit);
+              cacheUnits = this.units;
+              cacheWind = this.windUnit;
+            }
+            UI.setUnitLabel(cacheUnits);
+            UI.setWindUnitLabel(cacheWind);
+            UI.renderWeather(weather, aq, cacheUnits, name, country, cached.lat, cached.lon);
+            this._last = { weather, aq, units: cacheUnits, name, country, lat: cached.lat, lon: cached.lon };
+            UI.setUpdatedAt(cached.savedAt);
+            if (Number.isFinite(cached.lat) && Number.isFinite(cached.lon)) {
+              this.lastCity = name;
+              this.lastCountry = country;
+              this.lastLat = cached.lat;
+              this.lastLon = cached.lon;
+              Utils.safeSet('lastCity', name);
+              Utils.safeSet('lastCountry', country);
+              Utils.safeSet('lastLat', cached.lat);
+              Utils.safeSet('lastLon', cached.lon);
+            }
+          } catch (renderErr) {
+            UI.showError('Something went wrong.');
           }
-          UI.setUnitLabel(cacheUnits);
-          UI.setWindUnitLabel(cacheWind);
-          UI.renderWeather(weather, aq, cacheUnits, name, country, cached.lat, cached.lon);
-          this._last = { weather, aq, units: cacheUnits, name, country, lat: cached.lat, lon: cached.lon };
-          UI.setUpdatedAt(cached.savedAt);
-          if (Number.isFinite(cached.lat) && Number.isFinite(cached.lon)) {
-            this.lastCity = name;
-            this.lastCountry = country;
-            this.lastLat = cached.lat;
-            this.lastLon = cached.lon;
-            Utils.safeSet('lastCity', name);
-            Utils.safeSet('lastCountry', country);
-            Utils.safeSet('lastLat', cached.lat);
-            Utils.safeSet('lastLon', cached.lon);
-          }
-        } catch (renderErr) {
-          UI.showError('Something went wrong.');
+          return;
+        } else {
+          UI.showError(err && err.message ? err.message : 'Something went wrong.');
+          return;
         }
-        return;
-      } else {
-        UI.showError(err && err.message ? err.message : 'Something went wrong.');
-        return;
       }
-    }
 
-    if (seq !== this._weatherSeq) return;
+      if (seq !== this._weatherSeq) return;
 
-    try {
-      UI.markStale(false);
-      UI.markOffline(false);
-      UI.renderWeather(weather, aq, this.units, name, country, lat, lon);
-      this._last = { weather, aq, units: this.units, name, country, lat, lon };
-      this.lastCity = cityKey;
-      this.lastCountry = country;
-      this.lastLat = lat;
-      this.lastLon = lon;
-      UI.setUpdatedAt(Date.now());
-      Utils.safeSet('lastCity', cityKey);
-      Utils.safeSet('lastCountry', country);
-      Utils.safeSet('lastLat', lat);
-      Utils.safeSet('lastLon', lon);
-      Utils.saveWeatherCache({ savedAt: Date.now(), units: this.units, windUnit: this.windUnit, name, country, lat, lon, weather, aq });
-      this.startAutoRefresh();
-    } catch (renderErr) {
-      UI.showError('Something went wrong.');
+      try {
+        UI.markStale(false);
+        UI.markOffline(false);
+        UI.renderWeather(weather, aq, this.units, name, country, lat, lon);
+        this._last = { weather, aq, units: this.units, name, country, lat, lon };
+        this.lastCity = cityKey;
+        this.lastCountry = country;
+        this.lastLat = lat;
+        this.lastLon = lon;
+        UI.setUpdatedAt(Date.now());
+        Utils.safeSet('lastCity', cityKey);
+        Utils.safeSet('lastCountry', country);
+        Utils.safeSet('lastLat', lat);
+        Utils.safeSet('lastLon', lon);
+        Utils.saveWeatherCache({ savedAt: Date.now(), units: this.units, windUnit: this.windUnit, name, country, lat, lon, weather, aq });
+        this.startAutoRefresh();
+      } catch (renderErr) {
+        UI.showError('Something went wrong.');
+      }
+    } finally {
+      this._userBusy = Math.max(0, this._userBusy - 1);
     }
   },
 
   async useLocation() {
-    const seq = ++this._weatherSeq;
+    const locId = ++this._locSeq;
     if (!navigator.geolocation) {
       UI.showError('Geolocation is not supported by your browser.');
       return;
@@ -656,14 +662,14 @@ const App = {
       async (pos) => {
         try {
           const { latitude: lat, longitude: lon } = pos.coords;
-          if (seq !== this._weatherSeq) return;
+          if (locId !== this._locSeq) return;
           await this.loadWeather(lat, lon, 'Current Location', '', 'Current Location');
         } catch (err) {
-          if (seq === this._weatherSeq) UI.showError(err && err.message ? err.message : 'Something went wrong.');
+          if (locId === this._locSeq) UI.showError(err && err.message ? err.message : 'Something went wrong.');
         }
       },
       (err) => {
-        if (seq !== this._weatherSeq) return;
+        if (locId !== this._locSeq) return;
         const timedOut = err && err.code === 3;
         UI.showError(timedOut
           ? 'Location request timed out. Please search for a city.'

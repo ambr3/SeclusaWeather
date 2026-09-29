@@ -1,7 +1,7 @@
-const CACHE_NAME = 'seclusaweather-v0.6.2';
+const CACHE_NAME = 'seclusaweather-v0.6.3';
 const API_CACHE = 'seclusaweather-api-v1';
-const VERSION = 'v0.6.2';
-const ASSET_VER = '0.6.2';
+const VERSION = 'v0.6.3';
+const ASSET_VER = '0.6.3';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -32,9 +32,12 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.allSettled(STATIC_ASSETS.map((url) => cache.add(url)))
-    )
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const results = await Promise.allSettled(STATIC_ASSETS.map((url) => cache.add(url)));
+      const core = ['./index.html', `./js/app.js?v=${ASSET_VER}`, `./css/style.css?v=${ASSET_VER}`];
+      const failedCore = results.some((r, i) => r.status === 'rejected' && core.includes(STATIC_ASSETS[i]));
+      if (failedCore) throw new Error('core precache failed');
+    })
   );
   self.skipWaiting();
 });
@@ -49,7 +52,8 @@ self.addEventListener('activate', (event) => {
       )
     ).then(() => pruneApiCache()).then(() => {
       self.clients.claim();
-      setInterval(pruneApiCache, PRUNE_INTERVAL);
+      if (self._pruneTimer) clearInterval(self._pruneTimer);
+      self._pruneTimer = setInterval(pruneApiCache, PRUNE_INTERVAL);
     })
   );
 });
@@ -60,16 +64,26 @@ const PRUNE_INTERVAL = 6 * 60 * 60 * 1000;
 // records its own write-time timestamp in a sibling meta entry instead of
 // trying to read unreadable response headers.
 const API_META_SUFFIX = '&meta=savedAt';
-const API_ORIGINS = new Set([
+// Forecast + AQ only — never cache geocoding (search terms are privacy-sensitive).
+const API_CACHEABLE_ORIGINS = new Set([
   'https://api.open-meteo.com',
   'https://air-quality-api.open-meteo.com',
-  'https://geocoding-api.open-meteo.com',
 ]);
+const GEOCODING_ORIGIN = 'https://geocoding-api.open-meteo.com';
 
 function isApiRequest(url) {
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' && API_ORIGINS.has(u.origin);
+    return u.protocol === 'https:' && (API_CACHEABLE_ORIGINS.has(u.origin) || u.origin === GEOCODING_ORIGIN);
+  } catch {
+    return false;
+  }
+}
+
+function isCacheableApiRequest(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && API_CACHEABLE_ORIGINS.has(u.origin);
   } catch {
     return false;
   }
@@ -84,6 +98,11 @@ async function pruneApiCache() {
     const staleParents = new Set();
 
     for (const req of requests) {
+      // Drop any legacy geocoding cache entries (search history).
+      if (req.url.startsWith(GEOCODING_ORIGIN)) {
+        await cache.delete(req);
+        continue;
+      }
       if (!req.url.endsWith(API_META_SUFFIX)) continue;
       metas.add(req.url);
       const resp = await cache.match(req);
@@ -95,6 +114,7 @@ async function pruneApiCache() {
 
     const doomed = [];
     for (const req of requests) {
+      if (req.url.startsWith(GEOCODING_ORIGIN)) continue;
       if (req.url.endsWith(API_META_SUFFIX)) {
         const parent = req.url.slice(0, -API_META_SUFFIX.length);
         if (staleParents.has(parent)) doomed.push(req);
@@ -116,6 +136,19 @@ self.addEventListener('fetch', (event) => {
   const url = request.url;
 
   if (isApiRequest(url)) {
+    // Geocoding: network-only (no Cache Storage of search queries).
+    if (!isCacheableApiRequest(url)) {
+      event.respondWith(
+        fetch(request).catch(() =>
+          new Response(JSON.stringify({ error: 'offline' }), {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
+      );
+      return;
+    }
     event.respondWith(
       caches.open(API_CACHE).then((cache) =>
         fetch(request)

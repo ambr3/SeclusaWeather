@@ -160,6 +160,18 @@ const UI = {
     this.$('errorMessage').classList.add('hidden');
   },
 
+  showEmptyStart() {
+    this.hideLoading();
+    this.$('weatherContent').classList.add('hidden');
+    const arcSec = this.$('earthArcSection');
+    const arc = this.$('earthArc');
+    if (arcSec) arcSec.classList.add('hidden');
+    if (arc) arc.innerHTML = '';
+    const el = this.$('errorMessage');
+    el.textContent = 'Search for a city or use your location to see the forecast.';
+    el.classList.remove('hidden');
+  },
+
   markOffline(show) {
     const el = this.$('offlineNotice');
     if (el) el.classList.toggle('hidden', !show);
@@ -291,26 +303,26 @@ const UI = {
         <div class="current-weather__icon${isDay === 0 ? ' is-night' : ''}">${iconLive}</div>
       </div>
       <div class="current-weather__temp-row">
-        <div class="current-weather__temp">${temp}</div>
-        ${daySummary ? `<div class="current-weather__summary">${daySummary}</div>` : ''}
+        <div class="current-weather__temp">${this._esc(temp)}</div>
+        ${daySummary ? `<div class="current-weather__summary">${this._esc(daySummary)}</div>` : ''}
       </div>
       <div class="current-weather__meta">
-        <div class="current-weather__feels">Feels like ${feels}</div>
+        <div class="current-weather__feels">Feels like ${this._esc(feels)}</div>
       </div>
       <div class="current-weather__celestial">
         <div class="celestial">
           <div class="celestial__title">Sun</div>
           <div class="celestial__times">
-            <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${sunrise}</span></div>
-            <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${sunset}</span></div>
+            <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${this._esc(sunrise)}</span></div>
+            <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${this._esc(sunset)}</span></div>
           </div>
         </div>
         <div class="celestial-divider" aria-hidden="true"></div>
         <div class="celestial">
           <div class="celestial__title">Moon</div>
           <div class="celestial__times">
-            <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${moonrise}</span></div>
-            <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${moonset}</span></div>
+            <div class="celestial__row"><span class="celestial__label">Rise</span><span class="celestial__value">${this._esc(moonrise)}</span></div>
+            <div class="celestial__row"><span class="celestial__label">Set</span><span class="celestial__value">${this._esc(moonset)}</span></div>
           </div>
         </div>
       </div>
@@ -780,7 +792,7 @@ const UI = {
     const prefix = dateStr + 'T';
     let max = null;
     for (let k = 0; k < hourly.time.length; k++) {
-      if (!hourly.time[k].startsWith(prefix)) continue;
+      if (!String(hourly.time[k] || '').startsWith(prefix)) continue;
       if (hourly.is_day[k] !== 1) continue;
       const p = hourly.precipitation_probability[k];
       if (p != null && (max == null || p > max)) max = p;
@@ -873,7 +885,7 @@ const UI = {
     let min = null;
     let max = null;
     for (let k = 0; k < hourly.time.length; k++) {
-      if (!hourly.time[k].startsWith(prefix)) continue;
+      if (!String(hourly.time[k] || '').startsWith(prefix)) continue;
       const v = hourly[key][k];
       if (v == null || !Number.isFinite(Number(v))) continue;
       if (min == null || v < min) min = v;
@@ -1062,10 +1074,10 @@ const UI = {
         <div class="hourly-strip__hour${isNow ? ' hourly-strip__hour--now' : ''}"
              role="listitem" data-i="${modalI}" tabindex="0"
              aria-label="${this._esc(`${timeLabel}, ${temp}${rain ? `, ${rain} rain` : ''}`)}">
-          <span class="hourly-strip__time">${timeLabel}</span>
+          <span class="hourly-strip__time">${this._esc(timeLabel)}</span>
           <span class="hourly-strip__icon">${icon}</span>
-          <span class="hourly-strip__temp">${temp}</span>
-          ${rain ? `<span class="hourly-strip__rain">${rain}</span>` : '<span class="hourly-strip__rain hourly-strip__rain--empty" aria-hidden="true"></span>'}
+          <span class="hourly-strip__temp">${this._esc(temp)}</span>
+          ${rain ? `<span class="hourly-strip__rain">${this._esc(rain)}</span>` : '<span class="hourly-strip__rain hourly-strip__rain--empty" aria-hidden="true"></span>'}
         </div>
       `;
     };
@@ -2112,7 +2124,7 @@ const UI = {
     let minWind = null;
     const dirs = [];
     for (let k = 0; k < hourly.time.length; k++) {
-      if (!hourly.time[k].startsWith(prefix)) continue;
+      if (!String(hourly.time[k] || '').startsWith(prefix)) continue;
       const w = hourly.wind_speed_10m[k];
       if (w != null && Number.isFinite(w)) {
         if (maxWind == null || w > maxWind.v) maxWind = { v: w, k };

@@ -59,9 +59,16 @@ for host in api.open-meteo.com air-quality-api.open-meteo.com geocoding-api.open
   grep -q "$host" index.html || bad "CSP meta missing $host"
   grep -q "$host" .htaccess || bad ".htaccess missing $host"
   grep -q "$host" _headers || bad "_headers missing $host"
-  grep -q "$host" sw.js || bad "sw.js API_ORIGINS missing $host"
+  grep -q "$host" sw.js || bad "sw.js missing $host"
   grep -q "$host" js/config.js || bad "config.js missing $host"
 done
+grep -q 'GEOCODING_ORIGIN\|geocoding-api.open-meteo.com' sw.js || bad "sw geocoding host missing"
+grep -q 'isCacheableApiRequest' sw.js || bad "sw geocoding network-only guard missing"
+grep -A3 'const API_CACHEABLE_ORIGINS' sw.js | grep -q 'geocoding' && bad "geocoding must not be in API_CACHEABLE_ORIGINS"
+! grep -q '<style>' offline.html || bad "offline.html inline style block should be gone"
+grep -q 'offline-box' css/style.css || bad "offline-box CSS missing from style.css"
+grep -q '_userBusy' js/app.js || bad "user-busy guard for silent refresh missing"
+! grep -q 'preconnect' index.html || bad "preconnect should be removed (privacy)"
 grep -q "frame-ancestors 'none'" .htaccess _headers vercel.json || bad "frame-ancestors missing from header samples"
 grep -q 'X-Frame-Options' .htaccess _headers vercel.json || bad "X-Frame-Options missing from header samples"
 grep -q "font-src 'self'" index.html offline.html .htaccess _headers vercel.json || bad "font-src 'self' missing from CSP samples"
@@ -133,12 +140,13 @@ console.log('unit helpers ok');
 NODE
 pass "node unit helpers"
 
-# --- default London + modal/earth review guards ---
-grep -q "DEFAULT_LOCATION" js/config.js || bad "DEFAULT_LOCATION missing"
-grep -q "name: 'London'" js/config.js || bad "London default missing"
-grep -q "lat: 51.5074" js/config.js || bad "London lat missing"
-grep -q "_ensureDefaultLocation" js/app.js || bad "_ensureDefaultLocation missing"
-grep -q "built-in \*\*London\*\* default" README.md || bad "README London default note missing"
+# --- empty start (no silent London default) ---
+grep -q 'showEmptyStart' js/ui.js js/app.js || bad "empty-start UI missing"
+! grep -q '_ensureDefaultLocation' js/app.js || bad "silent London ensure should be gone"
+! grep -q 'DEFAULT_LOCATION' js/config.js || bad "DEFAULT_LOCATION should be gone"
+! grep -q "built-in \*\*London\*\* default" README.md || bad "README London default note should be updated"
+grep -q 'Search for a city or use your location' js/ui.js || bad "empty-start copy missing"
+# --- modal/earth review guards ---
 grep -q '_modalPaneHLocked' js/ui.js || bad "modal height settle lock missing"
 grep -q 'settle = false' js/ui.js || bad "modal settle remasure missing"
 grep -q '{ html = false }' js/ui.js || bad "_statRow html opt-in missing"
@@ -183,7 +191,7 @@ grep -q 'id="detailSection"' index.html || bad "detail section-head missing"
 grep -q 'id="windSection"' index.html || bad "wind section-head missing"
 ! grep -qE 'earth-arc__title|hourly-chart__title|class="pill-title|detail-box__title">Wind' js/ui.js || bad "in-pill titles still rendered"
 grep -q 'hourly-modal__head">${this._esc' js/ui.js || bad "modal head not escaped"
-pass "default London / modal / earth guards"
+pass "empty start / modal / earth guards"
 
 # --- local fonts (no CDN) ---
 grep -q "@font-face" css/style.css || bad "@font-face missing"

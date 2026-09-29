@@ -440,6 +440,10 @@ const Utils = {
       if (!data.weather || typeof data.weather !== 'object' || Array.isArray(data.weather)) return null;
       if (data.lat != null && !Number.isFinite(Number(data.lat))) return null;
       if (data.lon != null && !Number.isFinite(Number(data.lon))) return null;
+      const w = data.weather;
+      if (!w.current || typeof w.current !== 'object') return null;
+      if (!w.hourly || !Array.isArray(w.hourly.time) || !w.hourly.time.every((t) => typeof t === 'string')) return null;
+      if (!w.daily || !Array.isArray(w.daily.time) || !w.daily.time.every((t) => typeof t === 'string')) return null;
       return data;
     } catch (err) {
       return null;

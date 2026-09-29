@@ -68,7 +68,7 @@ Your data is your business. That's the whole point.
 | 🚫 **Zero tracking** | No analytics, no cookies, no fingerprinting, no third-party scripts |
 | 🖥️ **No server** | Pure static site — nothing runs on a server |
 | 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
-| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app shows your saved forecast straight from the on-device cache; once a location is set (saved city, or the built-in London default on a fresh install), that place is silently refreshed on open (when online). See the note below |
+| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app shows your saved forecast straight from the on-device cache; once a location is set (search or locate), that place is silently refreshed on open (when online). See the note below |
 | 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
 | 🧹 **Self-cleaning cache** | Cached API responses remove themselves after 7 days; the on-device forecast snapshot is overwritten on every refresh |
 | 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
@@ -79,7 +79,7 @@ Your data is your business. That's the whole point.
 | 🖼️ **Can't be embedded** | The app won't run inside other websites (best-effort — GitHub Pages limits header support, and there's nothing to gain from embedding anyway) |
 | 📜 **Open source** | GPL-3.0 — read every line |
 
-> ⚠️ **Location note:** coordinates go to the weather API only for the active place — a city you searched, "Use my location", the cached-forecast notice, or (on a fresh install / after erase) the built-in **London** default so the app has something to show. That active place is silently refreshed on open (when online) and, while the page is open, every 30 minutes. Device GPS is still opt-in (button tap only). Use Help → **"Erase my data"** to wipe the saved city, coordinates, and every cache (the next open will load London again until you pick somewhere else). (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
+> ⚠️ **Location note:** coordinates go to the weather API only for the active place — a city you searched, "Use my location", or a restored cached forecast. Fresh installs and after **Erase my data** show an empty start (search or locate) with **no** silent default city. Once a place is set, it is silently refreshed on open (when online) and, while the page is open, every 30 minutes. Device GPS is opt-in (button tap only). Use Help → **"Erase my data"** to wipe the saved city, coordinates, and every cache. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
 
 ---
 

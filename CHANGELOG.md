@@ -4,9 +4,21 @@ All notable changes to **Seclusa Weather**.
 
 ## Unreleased
 
+## 0.6.3 — 2026-09-29
+
+### Fixed
+- Silent refresh no longer cancels in-flight search/locate (`_userBusy` + no shared seq bump).
+- Service worker: geocoding is network-only (no search-history cache); prune clears legacy geocode entries; activate prune timer is not duplicated.
+- Offline page styles moved out of inline `<style>` (CSP `style-src 'self'`).
+- Weather cache load validates `current` / hourly+daily `time[]` shapes before use.
+
 ### Changed
-- Hourly forecast is a Now→forward horizontal strip (time, icon, temp, rain%) with in-flow day markers; day-paged 3-col grid, past hours, and equal-height empty pads removed.
-- Night earth flip only rotates the disc paint; sun/moon keep the same orbit path and Day/Night marks stay fixed.
+- Fresh install / after erase: no silent London default — empty start until search or locate.
+- Dropped Open-Meteo `preconnect` on first paint (contact only when fetching).
+- Escape more summary/celestial/hourly text sinks into `innerHTML`.
+- Hourly forecast is a Now→forward horizontal strip (time, icon, temp, rain%) with in-flow day markers.
+- Night earth flip only rotates the disc paint; sun/moon keep the same orbit path.
+- Shipping version / SW cache **0.6.3**.
 
 ## 0.6.2 — 2026-09-28
 
