@@ -4,6 +4,10 @@ All notable changes to **Seclusa Weather**.
 
 ## Unreleased
 
+### Added
+- Hourly day tabs (Today / Tomorrow / weekday) with swipe sync; “Swipe hours” above the tabs, “Swipe days” below; tap a tab or in-strip day marker to jump.
+- Earth arc N / E / S / W marks; they swap places with the night disc flip (text stays upright).
+
 ## 0.6.4 — 2026-09-29
 
 ### Fixed

@@ -446,6 +446,11 @@ const UI = {
               </g>
             </g>
             <circle cx="50" cy="50" r="26" class="current-weather__earth-edge" fill="none"/>
+            <!-- Compass on the disc; positions swap with night flip (text stays upright). -->
+            <text class="current-weather__compass" id="earthMarkN" x="50" y="72.2" text-anchor="middle" dominant-baseline="middle">N</text>
+            <text class="current-weather__compass" id="earthMarkS" x="50" y="30.2" text-anchor="middle" dominant-baseline="middle">S</text>
+            <text class="current-weather__compass" id="earthMarkE" x="29.2" y="51.2" text-anchor="middle" dominant-baseline="middle">E</text>
+            <text class="current-weather__compass" id="earthMarkW" x="70.8" y="51.2" text-anchor="middle" dominant-baseline="middle">W</text>
           </g>
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNoon" x="50" y="9" text-anchor="middle">Day</text>
           <text class="current-weather__orbit-mark current-weather__orbit-mark--soft" id="orbitMarkNight" x="50" y="98" text-anchor="middle">Night</text>
@@ -470,11 +475,23 @@ const UI = {
 
   // Night: rotate disc paint so dark (+stars) is on top. Orbit marks and orb
   // coords stay fixed (day top / night bottom) so sun & moon keep the same path.
+  // Compass letters stay upright but swap places with the paint (N↔S, E↔W).
   _syncEarthOrientation(isNight) {
     const host = this.$('earthArcSection') || this.$('earthArc');
     if (host) host.classList.toggle('earth-arc--night', !!isNight);
     const hemi = document.getElementById('earthHemispheres');
     if (hemi) hemi.setAttribute('transform', isNight ? 'rotate(180 50 50)' : '');
+    // Day: S toward Day mark (top), N toward Night (bottom), E=rise (left), W=set (right).
+    // Night: same relative to paint after the 180° disc flip.
+    const pos = isNight
+      ? { N: [50, 30.2], S: [50, 72.2], E: [70.8, 51.2], W: [29.2, 51.2] }
+      : { N: [50, 72.2], S: [50, 30.2], E: [29.2, 51.2], W: [70.8, 51.2] };
+    ['N', 'S', 'E', 'W'].forEach((k) => {
+      const el = document.getElementById(`earthMark${k}`);
+      if (!el) return;
+      el.setAttribute('x', String(pos[k][0]));
+      el.setAttribute('y', String(pos[k][1]));
+    });
   },
 
   _setOrbPositions(sun, moon) {
@@ -1036,6 +1053,17 @@ const UI = {
         .toLocaleDateString('en-US', { weekday: 'short' });
     };
 
+    const dayGroups = [];
+    let cur = null;
+    for (let idx = listStart; idx < hourly.time.length; idx++) {
+      const dateKey = String(hourly.time[idx]).slice(0, 10);
+      if (!cur || cur.key !== dateKey) {
+        cur = { key: dateKey, indices: [] };
+        dayGroups.push(cur);
+      }
+      cur.indices.push(idx);
+    }
+
     const hourFor = (idx) => {
       const time = hourly.time[idx];
       const isNow = idx === nowIdx;
@@ -1083,18 +1111,24 @@ const UI = {
     };
 
     const parts = [];
-    let prevKey = null;
-    for (let idx = listStart; idx < hourly.time.length; idx++) {
-      const dateKey = String(hourly.time[idx]).slice(0, 10);
-      if (prevKey && dateKey !== prevKey) {
+    dayGroups.forEach((g, dayIdx) => {
+      if (dayIdx > 0) {
         parts.push(`
-          <div class="hourly-strip__day" role="presentation" aria-hidden="true">
-            <span class="hourly-strip__day-label">${this._esc(dayLabelFor(dateKey))}</span>
-          </div>`);
+          <button type="button" class="hourly-strip__day" data-day="${dayIdx}"
+                  aria-label="${this._esc(`Jump to ${dayLabelFor(g.key)}`)}">
+            <span class="hourly-strip__day-label">${this._esc(dayLabelFor(g.key))}</span>
+          </button>`);
       }
-      parts.push(hourFor(idx));
-      prevKey = dateKey;
-    }
+      g.indices.forEach((idx) => parts.push(hourFor(idx)));
+    });
+
+    const multiDay = dayGroups.length > 1;
+    const tabs = multiDay
+      ? dayGroups.map((g, i) => `
+          <button type="button" class="hourly-strip__tab${i === 0 ? ' is-active' : ''}"
+                  role="tab" data-day="${i}" aria-selected="${i === 0}"
+                  aria-label="${this._esc(dayLabelFor(g.key))}">${this._esc(dayLabelFor(g.key))}</button>`).join('')
+      : '';
 
     Utils.dynCSS.del('hourly-h');
     this.$('hourlyScroll').innerHTML = `
@@ -1102,10 +1136,84 @@ const UI = {
         <div class="hourly-strip" role="list" aria-label="Hourly forecast from now">
           ${parts.join('')}
         </div>
+        ${multiDay ? `
+        <div class="hourly-strip__pager forecast-card__pager forecast-card__pager--stack" role="tablist" aria-label="Hourly days">
+          <span class="forecast-card__pagerlabel hourly-strip__hint-hours">
+            <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
+            <span class="forecast-card__pagerlead">Swipe</span>
+            <span class="forecast-card__pagerrange">hours</span>
+          </span>
+          <div class="hourly-strip__tabs">${tabs}</div>
+          <span class="forecast-card__pagerlabel hourly-strip__hint-days">
+            <svg class="forecast-card__pagericon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/><path d="M15 6l6 6-6 6"/></svg>
+            <span class="forecast-card__pagerlead">Swipe</span>
+            <span class="forecast-card__pagerrange">days</span>
+          </span>
+          <span class="forecast-card__pagertap">Tap any hour for more info</span>
+        </div>` : ''}
       </div>
     `;
 
+    const stripEl = this.$('hourlyScroll').querySelector('.hourly-strip');
+    const pagerEl = this.$('hourlyScroll').querySelector('.hourly-strip__pager');
+    if (stripEl && multiDay && pagerEl) {
+      this._bindHourlyDayNav(stripEl, pagerEl, dayGroups);
+    }
+
     if (!this._hourlyModalBound) this._bindHourlyModal();
+  },
+
+  _bindHourlyDayNav(stripEl, pagerEl, dayGroups) {
+    const tabs = pagerEl.querySelectorAll('.hourly-strip__tab');
+
+    const hourAnchor = (dayIdx) => {
+      const g = dayGroups[dayIdx];
+      if (!g || !g.indices.length) return null;
+      const modalI = g.indices[0] - this._hourlyStart;
+      return stripEl.querySelector(`.hourly-strip__hour[data-i="${modalI}"]`);
+    };
+
+    const scrollToDay = (dayIdx) => {
+      const el = hourAnchor(dayIdx);
+      if (!el) return;
+      const left = el.offsetLeft - 8;
+      stripEl.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    };
+
+    const activeDayFromScroll = () => {
+      const x = stripEl.scrollLeft + 12;
+      let active = 0;
+      for (let i = 0; i < dayGroups.length; i++) {
+        const el = hourAnchor(i);
+        if (!el) continue;
+        if (el.offsetLeft <= x) active = i;
+        else break;
+      }
+      return active;
+    };
+
+    const syncTabs = () => {
+      const page = activeDayFromScroll();
+      tabs.forEach((tab, i) => {
+        const on = i === page;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', String(on));
+      });
+    };
+
+    stripEl.addEventListener('scroll', syncTabs, { passive: true });
+    pagerEl.addEventListener('click', (e) => {
+      const tab = e.target.closest('.hourly-strip__tab');
+      if (!tab) return;
+      scrollToDay(parseInt(tab.dataset.day, 10) || 0);
+    });
+    stripEl.addEventListener('click', (e) => {
+      const dayBtn = e.target.closest('.hourly-strip__day');
+      if (!dayBtn) return;
+      e.preventDefault();
+      scrollToDay(parseInt(dayBtn.dataset.day, 10) || 0);
+    });
+    syncTabs();
   },
 
   _updateHourlyScroll() {
