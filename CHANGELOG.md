@@ -4,9 +4,22 @@ All notable changes to **Seclusa Weather**.
 
 ## Unreleased
 
+### Fixed
+- Saved place (`lastLat`/`lastLon`) now expires with the same 7-day TTL as weatherCache
+
+### Changed
+- Version **0.6.5**
+
 ### Added
 - Hourly day tabs (Today / Tomorrow / weekday) with swipe sync; “Swipe hours” above the tabs, “Swipe days” below; tap a tab or in-strip day marker to jump.
 - Earth arc N / E / S / W marks; they swap places with the night disc flip (text stays upright).
+
+### Fixed
+- On-device `weatherCache` now expires after 7 days and rejects oversized / malformed AQ payloads (matches privacy claim).
+- Service worker same-origin cache write uses `URL.origin` (not string prefix).
+- Stored units / wind / chart / city / lat-lon preferences validated on load.
+- `getUVLevel` / `getAQILevel` / `formatVisibility` reject null/NaN instead of treating them as valid.
+- README self-cleaning cache row corrected (no SW API cache; localStorage TTL).
 
 ## 0.6.4 — 2026-09-29
 

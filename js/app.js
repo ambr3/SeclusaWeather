@@ -1,13 +1,33 @@
 const App = {
-  units: Utils.safeGet('units', null) || CONFIG.DEFAULT_UNITS,
-  windUnit: Utils.safeGet('windUnit', null) || (Utils.safeGet('units', null) === 'imperial' ? 'mph' : 'kmh'),
-  visUnit: Utils.safeGet('visUnit', null) || 'km',
-  pressUnit: (Utils.safeGet('pressUnit', null) === 'inHg' ? 'inHg' : 'hPa'),
-  chartMode: Utils.safeGet('chartMode', 'temp') || 'temp',
-  lastCity: Utils.safeGet('lastCity', null),
-  lastCountry: Utils.safeGet('lastCountry', '') || '',
-  lastLat: parseFloat(Utils.safeGet('lastLat', '')),
-  lastLon: parseFloat(Utils.safeGet('lastLon', '')),
+  units: (() => {
+    const u = Utils.safeGet('units', null);
+    return u === 'imperial' || u === 'metric' ? u : CONFIG.DEFAULT_UNITS;
+  })(),
+  windUnit: (() => {
+    const allowed = ['kmh', 'mph', 'kn', 'ms'];
+    const w = Utils.safeGet('windUnit', null);
+    if (allowed.includes(w)) return w;
+    return Utils.safeGet('units', null) === 'imperial' ? 'mph' : 'kmh';
+  })(),
+  visUnit: Utils.safeGet('visUnit', null) === 'mi' ? 'mi' : 'km',
+  pressUnit: Utils.safeGet('pressUnit', null) === 'inHg' ? 'inHg' : 'hPa',
+  chartMode: (() => {
+    const m = Utils.safeGet('chartMode', 'temp');
+    return ['temp', 'rain', 'solar'].includes(m) ? m : 'temp';
+  })(),
+  lastCity: (() => {
+    const c = Utils.safeGet('lastCity', null);
+    return c == null ? null : String(c).slice(0, 80);
+  })(),
+  lastCountry: String(Utils.safeGet('lastCountry', '') || '').slice(0, 8),
+  lastLat: (() => {
+    const la = parseFloat(Utils.safeGet('lastLat', ''));
+    return Number.isFinite(la) && la >= -90 && la <= 90 ? la : NaN;
+  })(),
+  lastLon: (() => {
+    const lo = parseFloat(Utils.safeGet('lastLon', ''));
+    return Number.isFinite(lo) && lo >= -180 && lo <= 180 ? lo : NaN;
+  })(),
   deferredPrompt: null,
   dropdownResults: [],
   dropdownIndex: -1,
@@ -18,6 +38,34 @@ const App = {
   _blurTimer: null,
   _last: null,
 
+  _placeExpired() {
+    const at = parseInt(Utils.safeGet('lastPlaceAt', ''), 10);
+    if (!Number.isFinite(at)) {
+      // One-time migrate: stamp existing installs so they aren't wiped on upgrade
+      if (Number.isFinite(this.lastLat) && Number.isFinite(this.lastLon)) {
+        Utils.safeSet('lastPlaceAt', Date.now());
+        return false;
+      }
+      return true;
+    }
+    return Date.now() - at > Utils.WEATHER_CACHE_TTL_MS;
+  },
+
+  _clearSavedPlace() {
+    this.lastCity = null;
+    this.lastCountry = '';
+    this.lastLat = NaN;
+    this.lastLon = NaN;
+    try {
+      localStorage.removeItem('lastCity');
+      localStorage.removeItem('lastCountry');
+      localStorage.removeItem('lastLat');
+      localStorage.removeItem('lastLon');
+      localStorage.removeItem('lastPlaceAt');
+    } catch (e) { /* ignore */ }
+  },
+
+
   init() {
     // Best-effort anti-framing for hosts that ignore frame-ancestors in <meta>
     // (e.g. GitHub Pages). Real protection still needs the HTTP header samples.
@@ -26,6 +74,10 @@ const App = {
         window.top.location.replace(window.self.location.href);
       }
     } catch (e) { /* cross-origin frame — leave blank */ }
+
+    if ((Number.isFinite(this.lastLat) || Number.isFinite(this.lastLon)) && this._placeExpired()) {
+      this._clearSavedPlace();
+    }
 
     UI.setUnitLabel(this.units);
     UI.setWindUnitLabel(this.windUnit);
@@ -126,7 +178,7 @@ const App = {
 
     this.$('clearDataBtn').addEventListener('click', async () => {
       if (!window.confirm('Erase all local data and cached forecasts?')) return;
-      const keys = ['units', 'windUnit', 'visUnit', 'pressUnit', 'chartMode', 'dynamicText', 'theme', 'lastCity', 'lastCountry', 'lastLat', 'lastLon', 'weatherCache', 'hourlyAll'];
+      const keys = ['units', 'windUnit', 'visUnit', 'pressUnit', 'chartMode', 'dynamicText', 'theme', 'lastCity', 'lastCountry', 'lastLat', 'lastLon', 'lastPlaceAt', 'weatherCache', 'hourlyAll'];
       keys.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
       this._last = null;
       this.lastCity = null;
@@ -530,6 +582,7 @@ const App = {
         Utils.safeSet('lastCountry', cached.country || '');
         Utils.safeSet('lastLat', cached.lat);
         Utils.safeSet('lastLon', cached.lon);
+        Utils.safeSet('lastPlaceAt', Date.now());
         let weather = cached.weather;
         let cacheUnits = cached.units || this.units;
         let cacheWind = cached.windUnit || this.windUnit;
@@ -613,6 +666,7 @@ const App = {
               Utils.safeSet('lastCountry', country);
               Utils.safeSet('lastLat', cached.lat);
               Utils.safeSet('lastLon', cached.lon);
+              Utils.safeSet('lastPlaceAt', Date.now());
             }
           } catch (renderErr) {
             UI.showError('Something went wrong.');
@@ -640,6 +694,7 @@ const App = {
         Utils.safeSet('lastCountry', country);
         Utils.safeSet('lastLat', lat);
         Utils.safeSet('lastLon', lon);
+        Utils.safeSet('lastPlaceAt', Date.now());
         Utils.saveWeatherCache({ savedAt: Date.now(), units: this.units, windUnit: this.windUnit, name, country, lat, lon, weather, aq });
         this.startAutoRefresh();
       } catch (renderErr) {

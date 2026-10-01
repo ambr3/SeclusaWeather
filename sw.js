@@ -1,6 +1,6 @@
-const CACHE_NAME = 'seclusaweather-v0.6.4';
-const VERSION = 'v0.6.4';
-const ASSET_VER = '0.6.4';
+const CACHE_NAME = 'seclusaweather-v0.6.5';
+const VERSION = 'v0.6.5';
+const ASSET_VER = '0.6.5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -106,10 +106,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request).then((response) => {
-        if (response && response.status === 200 && request.url.startsWith(self.location.origin)) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
-        }
+        try {
+          const u = new URL(request.url);
+          if (response && response.status === 200 && u.origin === self.location.origin) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+          }
+        } catch { /* ignore bad URLs */ }
         return response;
       }).catch(() => cached);
       return cached || fetched;

@@ -70,7 +70,7 @@ Your data is your business. That's the whole point.
 | 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
 | 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app shows your saved forecast straight from the on-device cache; once a location is set (search or locate), that place is silently refreshed on open (when online). See the note below |
 | 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
-| 🧹 **Self-cleaning cache** | Cached API responses remove themselves after 7 days; the on-device forecast snapshot is overwritten on every refresh |
+| 🧹 **Self-cleaning cache** | The on-device forecast snapshot (localStorage) expires after 7 days and is overwritten on every refresh. API responses are not cached by the service worker |
 | 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
 | 📍 **Geolocation opt-in** | Only on button tap, sent only to Open-Meteo |
 | 🛡️ **Locked-down security** | The app can only reach the weather servers it actually needs |

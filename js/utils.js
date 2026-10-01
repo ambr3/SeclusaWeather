@@ -121,7 +121,7 @@ const Utils = {
   },
 
   formatVisibility(metres, unit) {
-    if (metres == null) return '—';
+    if (metres == null || !Number.isFinite(Number(metres))) return '—';
     if (unit === 'mi') {
       const miles = metres / 1609.34;
       if (miles >= 10) return `${Math.round(miles)} mi`;
@@ -247,6 +247,9 @@ const Utils = {
   },
 
   getAQILevel(aqi, scale) {
+    if (aqi == null || !Number.isFinite(Number(aqi))) {
+      return { label: '—', tone: 'good', color: '#4caf50' };
+    }
     if (scale === 'us') {
       if (aqi <= 50) return { label: 'Good', tone: 'good', color: '#4caf50' };
       if (aqi <= 100) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
@@ -264,6 +267,9 @@ const Utils = {
   },
 
   getUVLevel(uvi) {
+    if (uvi == null || !Number.isFinite(Number(uvi))) {
+      return { label: '—', tone: 'good', color: '#4caf50' };
+    }
     if (uvi <= 2) return { label: 'Low', tone: 'good', color: '#4caf50' };
     if (uvi <= 5) return { label: 'Moderate', tone: 'moderate', color: '#ff9800' };
     if (uvi <= 7) return { label: 'High', tone: 'high', color: '#f44336' };
@@ -423,9 +429,16 @@ const Utils = {
     }
   },
 
+  // Cap on-device forecast snapshot size; drop if larger (quota / abuse).
+  WEATHER_CACHE_MAX_BYTES: 512 * 1024,
+  // Drop stale snapshots so coords + payloads do not linger indefinitely.
+  WEATHER_CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000,
+
   saveWeatherCache(entry) {
     try {
-      localStorage.setItem('weatherCache', JSON.stringify(entry));
+      const raw = JSON.stringify(entry);
+      if (raw.length > this.WEATHER_CACHE_MAX_BYTES) return;
+      localStorage.setItem('weatherCache', raw);
     } catch (err) {
       // storage full or unavailable — cache is best-effort
     }
@@ -435,15 +448,25 @@ const Utils = {
     try {
       const raw = localStorage.getItem('weatherCache');
       if (!raw) return null;
+      if (raw.length > this.WEATHER_CACHE_MAX_BYTES) {
+        try { localStorage.removeItem('weatherCache'); } catch (e) {}
+        return null;
+      }
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
       if (!data.weather || typeof data.weather !== 'object' || Array.isArray(data.weather)) return null;
       if (data.lat != null && !Number.isFinite(Number(data.lat))) return null;
       if (data.lon != null && !Number.isFinite(Number(data.lon))) return null;
+      const savedAt = Number(data.savedAt);
+      if (Number.isFinite(savedAt) && Date.now() - savedAt > this.WEATHER_CACHE_TTL_MS) {
+        try { localStorage.removeItem('weatherCache'); } catch (e) {}
+        return null;
+      }
       const w = data.weather;
       if (!w.current || typeof w.current !== 'object') return null;
       if (!w.hourly || !Array.isArray(w.hourly.time) || !w.hourly.time.every((t) => typeof t === 'string')) return null;
       if (!w.daily || !Array.isArray(w.daily.time) || !w.daily.time.every((t) => typeof t === 'string')) return null;
+      if (data.aq != null && (typeof data.aq !== 'object' || Array.isArray(data.aq))) return null;
       return data;
     } catch (err) {
       return null;
