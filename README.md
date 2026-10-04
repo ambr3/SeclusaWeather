@@ -1,15 +1,12 @@
 <p align="center">
-  <img src="assets/icons/icon-maskable-192.svg" alt="Seclusa Weather" width="120" height="120">
+  <img src="assets/icons/icon-maskable-192.svg" alt="Seclusa Weather" width="110" height="110">
 </p>
 
 <h1 align="center">Seclusa Weather</h1>
 
 <p align="center">
-  <em>Seclusa — from the Latin meaning "private", "secluded", or "set apart"</em>
-</p>
-
-<p align="center">
-  <em>A privacy-first weather PWA — zero tracking, no accounts, no API keys.</em>
+  <em>Privacy-first weather PWA — zero tracking, no accounts, no API keys.</em><br>
+  <em>Seclusa — from the Latin for “private”, “secluded”, “set apart”.</em>
 </p>
 
 <p align="center">
@@ -19,112 +16,53 @@
   <img alt="PWA" src="https://img.shields.io/badge/PWA-installable-5a67d8.svg">
 </p>
 
+<p align="center"><strong>v0.6.5</strong></p>
+
 <p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#privacy">Privacy</a> ·
-  <a href="#installation">Installation</a> ·
-  <a href="#license">License</a>
+  <img src="pictures/screenshots/weather-phone.png" alt="Phone — current conditions" height="280">
+  <img src="pictures/screenshots/weather-phone-dark.png" alt="Phone — dark mode" height="280">
+  <img src="pictures/screenshots/weather-desktop.png" alt="Desktop — forecast" height="280">
 </p>
 
 ---
 
-Keeps your weather your own. Seclusa Weather is a **pure static, open-source weather app**. Everything runs in your browser: preferences and a cached forecast live only on your device, and the only outbound requests are to the [Open-Meteo](https://open-meteo.com/) APIs (weather, air quality, and geocoding). Installable, offline-capable, and auditable end-to-end.
+Pure static weather app. Preferences and the cached forecast stay on your device; the only outbound calls are to [Open-Meteo](https://open-meteo.com/) (weather, air quality, geocoding). Installable, offline-capable, auditable end-to-end.
 
----
+### A note from me
 
-## ✨ Features
+I’m not a professional web developer — I’ve used AI a lot while building this, and I’m transparent about that. Audit the code before you rely on it; everything is GPL-3.0 and open to review.
 
-### 🌡️ Forecast
-- **Current conditions** — temperature, feels-like, humidity, pressure, wind, precipitation, UV, visibility
-- **Hourly forecast** — day-paged vertical hour list (swipe days L/R like forecast) with a multi-metric chart
-  *(Temp & Dew · Rain · Solar)*
-- **Daily forecast** — 7-day or 14-day cards with a toggle
-- **Sunrise/sunset arc** — a live SVG that shows the sun *and* moon arcing around Earth (flips at night so dark is on top, with subtle stars)
-- **Auto-refresh** — once you've loaded a forecast, it silently stays fresh every 30 minutes
+## Features
 
-### 🌍 Air & Environment
-- **Air quality index** — EU or US AQI with PM2.5, PM10, NO₂, O₃, SO₂, CO breakdown
-- **Pollen forecast** — alder, birch, grass, mugwort, olive, and ragweed levels
-- **UV index** — color-coded badge with risk level
+- Current, hourly (day-paged + multi-metric chart), and 7/14-day forecast
+- Sunrise/sunset arc, UV, air quality (EU/US AQI), pollen
+- Wind compass (no map tiles); geolocation opt-in on button tap only
+- Dark / light themes, weather backgrounds, metric / imperial
+- Auto-refresh every 30 minutes once a place is set
 
-### 🗺️ Location
-- **Wind compass** — a live SVG rose showing which way the wind is blowing, with speed, gusts, and your selected location's coordinates. No map service involved
-- **Geolocation** — "use my location", fully opt-in, on button tap only
+## Privacy
 
-### 🎨 Interface
-- **Dark / light themes** with dynamic weather backgrounds at sunrise, rain, snow, thunder, fog, and night
-- **Metric / imperial toggle** — saved between visits
-- **Touch-friendly day-paged hourly list** — tap any hour (or any forecast day) for full details
-- Smooth fade-in animations, fully responsive
+- **Zero tracking** — no analytics, cookies, fingerprinting, or third-party scripts
+- **No server / no API key** — static site; Open-Meteo only
+- **On-device** — preferences and forecast cache in localStorage; snapshot expires after 7 days
+- **What leaves** — coordinates / search queries for the active place go to Open-Meteo; nothing else
+- **Erase anytime** — Help → Erase my data
+- Camera, mic, sensors, payment blocked; embedding best-effort blocked
 
----
+Fresh installs and after erase show an empty start (search or locate) — no silent default city.
 
-## 🔒 Privacy
+## Install
 
-Your data is your business. That's the whole point.
+Open the live site (or serve this folder) and **Install** / **Add to Home screen**. Offline after first load.
 
-| | |
-|---|---|
-| 🚫 **Zero tracking** | No analytics, no cookies, no fingerprinting, no third-party scripts |
-| 🖥️ **No server** | Pure static site — nothing runs on a server |
-| 🔑 **No API key** | Powered by free open-source [Open-Meteo](https://open-meteo.com/), no account needed |
-| 🏠 **Stays on device** | Preferences and the cached forecast never leave your device. Opening the app shows your saved forecast straight from the on-device cache; once a location is set (search or locate), that place is silently refreshed on open (when online). See the note below |
-| 📤 **What leaves** | Forecasts (with coordinates) and the city names you type in search go to Open-Meteo. Nothing else |
-| 🧹 **Self-cleaning cache** | The on-device forecast snapshot (localStorage) expires after 7 days and is overwritten on every refresh. API responses are not cached by the service worker |
-| 🧽 **Erase anytime** | The Help panel's "Erase my data" wipes the saved city, coordinates, settings, and every cache in one tap |
-| 📍 **Geolocation opt-in** | Only on button tap, sent only to Open-Meteo |
-| 🛡️ **Locked-down security** | The app can only reach the weather servers it actually needs |
-| 🕵️ **No hidden sharing** | Nothing beyond the forecast request itself ever leaves your device |
-| 🚫 **Camera & mic stay off** | Access to camera, microphone, motion sensors, and payment is blocked |
-| 🖼️ **Can't be embedded** | The app won't run inside other websites (best-effort — GitHub Pages limits header support, and there's nothing to gain from embedding anyway) |
-| 📜 **Open source** | GPL-3.0 — read every line |
-
-> ⚠️ **Location note:** coordinates go to the weather API only for the active place — a city you searched, "Use my location", or a restored cached forecast. Fresh installs and after **Erase my data** show an empty start (search or locate) with **no** silent default city. Once a place is set, it is silently refreshed on open (when online) and, while the page is open, every 30 minutes. Device GPS is opt-in (button tap only). Use Help → **"Erase my data"** to wipe the saved city, coordinates, and every cache. (The shields.io images above load only when this README is viewed on GitHub — the app itself never loads them.)
-
----
-
-## 📦 Installation
-
-### Use it
-Open the live site in your browser and install it as a PWA:
-
-1. Open the site
-2. Tap **Install** / **Add to Home screen**
-3. Done — it works offline too
-
-> 💡 Want maximum security? On Android use a hardened browser like **Vanadium (GrapheneOS)** or **Brave** for any PWA.
-
-### Self-host
-
-Serve the repo as a static site.
-
-**Prefer Netlify, Cloudflare Pages, Vercel, or Apache** so the bundled hardening headers apply:
-- `_headers` — Netlify / Cloudflare Pages
-- `vercel.json` — Vercel
-- `.htaccess` — Apache
-
-Those files set real `Content-Security-Policy` (including `frame-ancestors 'none'`), `X-Frame-Options`, `Referrer-Policy`, HSTS, COOP/CORP, and no-cache for `index.html` / `offline.html` / `sw.js`.
-
-**GitHub Pages** ignores `_headers` and `.htaccess`. The in-page CSP meta still locks scripts/connect, and the app best-effort frame-busts, but clickjacking headers cannot be enforced there. For the full privacy/security bar, host elsewhere.
-
-Quick smoke check before deploy:
+Self-host as static files. Prefer Netlify / Cloudflare Pages / Vercel / Apache so `_headers`, `vercel.json`, or `.htaccess` apply (CSP, frame-ancestors, HSTS). GitHub Pages ignores those files — in-page CSP still locks scripts/connect.
 
 ```bash
 bash scripts/smoke.sh
 ```
 
----
+## License
 
-## ⚠️ Disclaimer
+GPL-3.0 — see [LICENSE](LICENSE).
 
-> This project was **vibe-coded**. All code is reviewed before each release, but it's still recommended to audit for security flaws before use, especially when self-hosting. Use at your own risk.
-
----
-
-## 📄 License
-
-[GPL-3.0](LICENSE) — free to use, modify, and share, with the same freedom preserved for derivatives.
-
-Bundled UI fonts (**DM Sans**, **Sora**) are [SIL Open Font License 1.1](assets/fonts/OFL-DM-SANS.txt) ([Sora OFL](assets/fonts/OFL-SORA.txt)); served locally — no font CDN.
-
----
+Bundled UI fonts (**DM Sans**, **Sora**) are SIL OFL 1.1 — served locally, no font CDN.

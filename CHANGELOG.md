@@ -4,6 +4,12 @@ All notable changes to **Seclusa Weather**.
 
 ## Unreleased
 
+### Added
+- README screenshots from the live site (phone light/dark + desktop)
+
+### Changed
+- Shortened README to match Seclusa Solitaire style
+
 ### Fixed
 - Saved place (`lastLat`/`lastLon`) now expires with the same 7-day TTL as weatherCache
 
