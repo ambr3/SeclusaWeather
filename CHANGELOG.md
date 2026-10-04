@@ -9,7 +9,7 @@ All notable changes to **Seclusa Weather**.
 
 ### Changed
 - Shortened README to match Seclusa Solitaire style
-- Cropped README screenshots into one tight collage (`readme-row.png`)
+- Cropped README screenshots; show on one row with no gaps between images
 
 ### Fixed
 - Saved place (`lastLat`/`lastLon`) now expires with the same 7-day TTL as weatherCache

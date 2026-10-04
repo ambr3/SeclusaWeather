@@ -19,7 +19,7 @@
 <p align="center"><strong>v0.6.5</strong></p>
 
 <p align="center">
-  <img src="pictures/screenshots/readme-row.png" alt="Seclusa Weather — phone light, phone dark, desktop" width="820">
+  <img src="pictures/screenshots/weather-phone.png" alt="Phone — current conditions" height="160"><img src="pictures/screenshots/weather-phone-dark.png" alt="Phone — dark mode" height="160"><img src="pictures/screenshots/weather-desktop.png" alt="Desktop — forecast" height="160">
 </p>
 
 ---
