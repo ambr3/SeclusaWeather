@@ -28,7 +28,8 @@ Pure static weather app. Preferences and the cached forecast stay on your device
 
 ### A note from me
 
-I’m not a professional web developer — I’ve used AI a lot while building this, and I’m transparent about that. Audit the code before you rely on it; everything is GPL-3.0 and open to review.
+I’m not a professional web developer. *[read more about me here](https://ambr3.pages.dev/#about)*. I’ve used AI while building this and I want to be transparent about that. Audit the code before you rely on it. Everything is GPL-3.0 and open to review.
+
 
 ## Features
 
